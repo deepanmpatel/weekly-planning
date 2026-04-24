@@ -6,7 +6,9 @@ import {
 import type { Comment, Profile, Project, Tag, Task } from "./types";
 import { getAccessToken } from "./auth";
 
-const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:3001";
+// Dev (.env has explicit URL) → http://localhost:3001 + /projects, etc.
+// Prod (Vercel, no env var) → "/api" + /projects → Vercel rewrite → Express function.
+const BASE = import.meta.env.VITE_API_BASE || "/api";
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAccessToken();

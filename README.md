@@ -1,79 +1,72 @@
-# Weekly Planning — local Asana replacement
+# Weekly Planning — personal Asana replacement
 
-Personal 3-tier board:
+Multi-user board with Google / GitHub login, projects, tasks & subtasks, tags, comments, per-task activity history, and per-task assignees.
 
 - **web/** — Vite + React + TypeScript + Tailwind + TanStack Query
-- **api/** — Express + TypeScript + Zod + Supabase JS
-- **db** — Supabase Postgres (free tier, shared via connection string)
+- **server/** — Express + TypeScript + Zod + Supabase JS (used for local dev)
+- **api/** — a single Vercel serverless function that wraps the Express app (used in production)
+- **db** — Supabase Postgres
 
-Features: unlimited projects, tasks, and nested subtasks; status (To-Do / In Progress / Done); due dates with overdue highlight; tags with colors; comments; kanban-style project view + a grouped "All Tasks" overview. A single `TaskCard` component is reused everywhere a task renders.
+A single `TaskCard` component is reused everywhere a task renders.
 
-## Setup
+---
+
+## Local dev
 
 ### 1. Create a Supabase project
-1. Go to [supabase.com](https://supabase.com) → New project (free tier).
-2. Wait for it to provision (~1 min).
-3. Project settings → **API**:
-   - Copy the **Project URL** (`https://xxxxx.supabase.co`).
-   - Copy the **service_role** secret (under "Project API keys").
+1. [supabase.com/dashboard](https://supabase.com/dashboard) → **New project**. Wait ~1 min.
+2. Settings → **API** → copy **Project URL**, **publishable** key, **secret** key.
 
 ### 2. Run the schema
-In the Supabase dashboard → **SQL Editor** → New query → paste the contents of `api/sql/schema.sql` → **Run**.
+SQL Editor → New query → paste all of `server/sql/schema.sql` → **Run**.
 
-> Already set up an older version? Run the migrations instead, in order:
-> `api/sql/0001_add_task_events.sql`, then `api/sql/0002_add_auth.sql`.
+### 3. Enable OAuth providers
+Authentication → **Providers**:
 
-### 2b. Enable OAuth providers
-Supabase dashboard → **Authentication → Providers**:
+- **GitHub** — [register an OAuth app](https://github.com/settings/developers), `Authorization callback URL = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`. Paste Client ID + Secret into Supabase.
+- **Google** — [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials), `Authorized redirect URI = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`. Paste into Supabase.
 
-- **GitHub**: toggle on. You'll need to [register an OAuth app](https://github.com/settings/developers) with `Authorization callback URL = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`. Paste the Client ID + Secret.
-- **Google**: toggle on. Create OAuth 2.0 credentials in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) with `Authorized redirect URI = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`. Paste the Client ID + Secret.
+Authentication → **URL Configuration** → add `http://localhost:5173` (and your production URL later) to **Site URL** and **Redirect URLs**.
 
-Then **Authentication → URL Configuration** → add `http://localhost:5173` (and your deployed URL if applicable) to both **Site URL** and **Redirect URLs**.
-
-### 3. Configure env
+### 4. Configure env
 ```bash
-cp api/.env.example api/.env
+cp server/.env.example server/.env
 cp web/.env.example web/.env
 ```
-Fill in `api/.env`:
-```
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
-PORT=3001
-SEED_CSV_PATH=/Users/you/Downloads/Weekly_Planning.csv
-```
+Fill in both with the Supabase values from step 1.
 
-And `web/.env`:
-```
-VITE_API_BASE=http://localhost:3001
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_...
-```
-(The web app uses the **publishable** key for the OAuth flow; API uses the **secret**.)
-
-### 4. Install
+### 5. Install & seed
 ```bash
 npm install
-```
-
-### 5. Seed from your CSV (one-shot)
-```bash
-npm run seed
-```
-This reads `SEED_CSV_PATH` and inserts projects, top-level tasks, and subtasks. It refuses to run if the `projects` table is non-empty.
-
-To re-seed, first clear the tables in the SQL editor:
-```sql
-truncate task_tags, comments, tasks, tags, projects restart identity cascade;
+npm run seed      # one-shot: imports Weekly_Planning.csv
 ```
 
 ### 6. Run
 ```bash
 npm run dev
 ```
-- UI: http://localhost:5173
-- API: http://localhost:3001
+UI: http://localhost:5173 · API: http://localhost:3001
+
+---
+
+## Deploy to Vercel (single project for UI + API)
+
+1. **vercel.com/new** → import this repo. Leave "Root Directory" as the repo root.
+2. Framework, build command, output — all auto-detected from `vercel.json`. Don't override.
+3. **Integrations → Browse Marketplace → Supabase** → connect your Supabase project. This auto-injects these env vars into the Vercel project:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY` (mapped from integration; Vite needs a `VITE_` prefix — see next step)
+   - `SUPABASE_SERVICE_ROLE_KEY`
+4. **Settings → Environment Variables** — add two **Vite-prefixed** mirrors of the integration-provided vars so the browser bundle can read them:
+   - `VITE_SUPABASE_URL` = same value as `SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY` = same value as `SUPABASE_ANON_KEY`
+   (Vercel's Supabase integration doesn't auto-prefix for Vite yet. One-time copy in the UI; still no secrets in git.)
+5. Deploy. The frontend is served at `/`, the Express app is served at `/api/*` via the serverless function.
+6. **Back in Supabase** → Authentication → URL Configuration → add your Vercel URL (e.g. `https://weekly-planning-xyz.vercel.app`) to both Site URL and Redirect URLs.
+
+That's it — all credentials live in Vercel's encrypted env store, nothing hardcoded, and the whole app runs on Vercel's free tier.
+
+---
 
 ## API routes
 
@@ -86,8 +79,8 @@ GET    /projects/:id/tasks
 
 GET    /tasks
 GET    /tasks/:id
-POST   /tasks                     { project_id, parent_task_id?, name, ... }
-PATCH  /tasks/:id                 { name?, status?, due_date?, description? }
+POST   /tasks                     { project_id, parent_task_id?, name, assignee_id?, ... }
+PATCH  /tasks/:id                 { name?, status?, due_date?, description?, assignee_id? }
 DELETE /tasks/:id
 POST   /tasks/:id/tags            { tag_id }
 DELETE /tasks/:id/tags/:tagId
@@ -104,10 +97,4 @@ GET    /users                     # all profiles (for assignee picker)
 GET    /users/me                  # current signed-in user
 ```
 
-All routes except `/health` require a `Authorization: Bearer <supabase_access_token>` header. The web app attaches this automatically from the signed-in session.
-
-## Notes
-
-- **Single-user, local only.** No auth. Do not expose the API publicly without adding auth — the service-role key bypasses Row-Level Security.
-- **Subtasks are tasks** (`parent_task_id` points at the parent). UI renders one level, but the model supports deeper nesting if you want.
-- **Data lives in Supabase**, so the UI and API running on your laptop all read/write the same store. Run it from anywhere, connect the same `.env`, same board.
+All routes except `/health` require `Authorization: Bearer <supabase_access_token>`. The web app attaches this automatically from the signed-in session.

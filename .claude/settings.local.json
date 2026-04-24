@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(npm --workspace api run build)",
-      "Bash(npm --workspace web run build)"
+      "Bash(npm --workspace web run build)",
+      "Bash(npm --workspace asana-server run build)",
+      "Bash(npm --workspace asana-web run build)",
+      "Bash(npx tsc *)"
     ]
   }
 }
