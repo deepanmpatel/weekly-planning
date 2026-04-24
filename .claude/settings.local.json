@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm --workspace api run build)",
+      "Bash(npm --workspace web run build)"
+    ]
+  }
+}
