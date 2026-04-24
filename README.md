@@ -1,6 +1,6 @@
 # Weekly Planning — personal Asana replacement
 
-Multi-user board with Google / GitHub login, projects, tasks & subtasks, tags, comments, per-task activity history, and per-task assignees.
+Multi-user board with Google sign-in, projects, tasks & subtasks, tags, comments, per-task activity history, and per-task assignees.
 
 - **web/** — Vite + React + TypeScript + Tailwind + TanStack Query
 - **server/** — Express + TypeScript + Zod + Supabase JS (used for local dev)
@@ -20,11 +20,11 @@ A single `TaskCard` component is reused everywhere a task renders.
 ### 2. Run the schema
 SQL Editor → New query → paste all of `server/sql/schema.sql` → **Run**.
 
-### 3. Enable OAuth providers
-Authentication → **Providers**:
+### 3. Enable Google sign-in
+Authentication → **Providers → Google**:
 
-- **GitHub** — [register an OAuth app](https://github.com/settings/developers), `Authorization callback URL = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`. Paste Client ID + Secret into Supabase.
-- **Google** — [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials), `Authorized redirect URI = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`. Paste into Supabase.
+- Create OAuth 2.0 credentials in [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) with `Authorized redirect URI = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`.
+- Paste the Client ID + Secret into Supabase and toggle the provider on.
 
 Authentication → **URL Configuration** → add `http://localhost:5173` (and your production URL later) to **Site URL** and **Redirect URLs**.
 

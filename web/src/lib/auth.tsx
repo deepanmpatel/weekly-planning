@@ -12,7 +12,7 @@ import { supabase } from "./supabase";
 interface AuthContextValue {
   session: Session | null;
   loading: boolean;
-  signInWith: (provider: "github" | "google") => Promise<void>;
+  signInWith: (provider: "google") => Promise<void>;
   signOut: () => Promise<void>;
 }
 
