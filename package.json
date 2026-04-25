@@ -2,6 +2,7 @@
   "name": "asana-local",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "workspaces": ["server", "web"],
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
