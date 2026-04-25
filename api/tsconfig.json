@@ -9,5 +9,5 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["index.mts", "../server/src/**/*"]
+  "include": ["index.ts", "../server/src/**/*"]
 }
