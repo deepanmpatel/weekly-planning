@@ -12,7 +12,9 @@
       "Bash(curl -s http://localhost:5173/)",
       "Bash(curl -s http://localhost:5173/src/lib/api.ts)",
       "Bash(curl -i -H \"Authorization: Bearer invalidtoken\" http://localhost:3001/projects)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Read(//Users/deepankumar.patel/**)",
+      "Bash(echo \"---exit:$?\")"
     ]
   }
 }
