@@ -35,9 +35,19 @@ create table if not exists public.profiles (
   email text,
   display_name text,
   avatar_url text,
+  is_admin boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.allowed_emails (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  added_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists allowed_emails_email_idx on public.allowed_emails(lower(email));
 
 create or replace function public.handle_new_user()
 returns trigger

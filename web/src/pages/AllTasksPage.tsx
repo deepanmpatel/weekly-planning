@@ -9,8 +9,8 @@ import clsx from "clsx";
 type Filter = "all" | Status;
 
 export function AllTasksPage() {
-  const { data: tasks = [], isLoading } = useAllTasks();
-  const { data: projects = [] } = useProjects();
+  const { data: tasks = [], isLoading, error } = useAllTasks();
+  const { data: projects = [], error: projectsError } = useProjects();
   const [filter, setFilter] = useState<Filter>("all");
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [includeSubtasks, setIncludeSubtasks] = useState(false);
@@ -87,10 +87,23 @@ export function AllTasksPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-6">
+        {(error || projectsError) && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            <div className="font-semibold">Couldn't load data</div>
+            <div className="mt-1 font-mono text-xs">
+              {(error ?? projectsError)?.message}
+            </div>
+            <div className="mt-2 text-xs text-rose-700">
+              If this is localhost, make sure <code>http://localhost:5173</code>{" "}
+              is in Supabase → Authentication → URL Configuration → Redirect URLs,
+              then sign out and sign back in.
+            </div>
+          </div>
+        )}
         {isLoading && (
           <div className="text-sm text-ink-500">Loading tasks…</div>
         )}
-        {!isLoading && ordered.length === 0 && (
+        {!isLoading && !error && ordered.length === 0 && (
           <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-sm text-ink-500">
             No tasks match the current filter.
           </div>

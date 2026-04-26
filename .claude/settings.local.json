@@ -6,7 +6,13 @@
       "Bash(npm --workspace web run build)",
       "Bash(npm --workspace asana-server run build)",
       "Bash(npm --workspace asana-web run build)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(curl -i http://localhost:3001/projects)",
+      "Bash(curl -i http://localhost:5173/)",
+      "Bash(curl -s http://localhost:5173/)",
+      "Bash(curl -s http://localhost:5173/src/lib/api.ts)",
+      "Bash(curl -i -H \"Authorization: Bearer invalidtoken\" http://localhost:3001/projects)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

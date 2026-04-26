@@ -50,6 +50,15 @@ export interface Profile {
   email: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  is_admin?: boolean;
+  is_allowed?: boolean;
+}
+
+export interface AllowedEmail {
+  id: string;
+  email: string;
+  added_by: string | null;
+  created_at: string;
 }
 
 export interface TaskEvent {

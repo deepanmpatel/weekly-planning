@@ -49,6 +49,18 @@ export function Sidebar() {
           <span>All Tasks</span>
         </NavLink>
 
+        {me?.is_admin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) => linkClass(isActive)}
+          >
+            <span>Admin</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+              ⚙
+            </span>
+          </NavLink>
+        )}
+
         <div className="mt-4 flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
           <span>Projects</span>
           <button

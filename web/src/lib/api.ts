@@ -3,7 +3,14 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { Comment, Profile, Project, Tag, Task } from "./types";
+import type {
+  AllowedEmail,
+  Comment,
+  Profile,
+  Project,
+  Tag,
+  Task,
+} from "./types";
 import { getAccessToken } from "./auth";
 
 // Dev (.env has explicit URL) → http://localhost:3001 + /projects, etc.
@@ -42,6 +49,7 @@ const qk = {
   tags: ["tags"] as const,
   users: ["users"] as const,
   me: ["me"] as const,
+  allowedEmails: ["admin", "allowed-emails"] as const,
 };
 
 /* ---------- Projects ---------- */
@@ -255,5 +263,52 @@ export function useMe() {
     queryKey: qk.me,
     queryFn: () => http<Profile>("/users/me"),
     staleTime: 60_000,
+  });
+}
+
+/* ---------- Admin ---------- */
+
+export function useAllowedEmails() {
+  return useQuery({
+    queryKey: qk.allowedEmails,
+    queryFn: () => http<AllowedEmail[]>("/admin/allowed-emails"),
+  });
+}
+
+export function useAddAllowedEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (email: string) =>
+      http<AllowedEmail>("/admin/allowed-emails", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: qk.allowedEmails }),
+  });
+}
+
+export function useRemoveAllowedEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      http<void>(`/admin/allowed-emails/${id}`, { method: "DELETE" }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: qk.allowedEmails }),
+  });
+}
+
+export function useSetUserAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, is_admin }: { id: string; is_admin: boolean }) =>
+      http<Profile>(`/admin/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_admin }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.users });
+      qc.invalidateQueries({ queryKey: qk.me });
+    },
   });
 }
