@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { supabase } from "../supabase.js";
 import { projectCreate, projectUpdate, statusEnum } from "../schemas.js";
+import { type EventInput, logEvents } from "../events.js";
 
 export const projectsRouter = Router();
 
@@ -121,31 +122,87 @@ projectsRouter.get("/:id/tasks", async (req, res) => {
 });
 
 const reorderSchema = z.object({
-  status: statusEnum,
-  ordered_ids: z.array(z.string().uuid()),
+  todo: z.array(z.string().uuid()),
+  in_progress: z.array(z.string().uuid()),
+  done: z.array(z.string().uuid()),
 });
 
-projectsRouter.put("/:id/tasks/order", async (req, res) => {
+// Reorders all three status columns in one call. Detects cross-column moves,
+// updates status (+ completed_at), and logs status_changed events.
+projectsRouter.put("/:id/tasks/reorder", async (req, res) => {
   const parsed = reorderSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const { status, ordered_ids } = parsed.data;
   const projectId = req.params.id;
+  const columns = parsed.data;
+
+  const { data: current, error: fetchErr } = await supabase
+    .from("tasks")
+    .select("id, status, position")
+    .eq("project_id", projectId)
+    .is("parent_task_id", null);
+  if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+
+  const currentById = new Map(
+    (current ?? []).map((t) => [t.id, t] as const)
+  );
+
+  type Update = {
+    id: string;
+    patch: Record<string, unknown>;
+    fromStatus: string;
+    toStatus: string;
+  };
+  const updates: Update[] = [];
+
+  for (const status of ["todo", "in_progress", "done"] as const) {
+    columns[status].forEach((id, position) => {
+      const before = currentById.get(id);
+      if (!before) return;
+      const statusChanged = before.status !== status;
+      const positionChanged = before.position !== position;
+      if (!statusChanged && !positionChanged) return;
+
+      const patch: Record<string, unknown> = { status, position };
+      if (statusChanged) {
+        patch.completed_at =
+          status === "done" ? new Date().toISOString() : null;
+      }
+      updates.push({
+        id,
+        patch,
+        fromStatus: before.status,
+        toStatus: status,
+      });
+    });
+  }
+
+  if (updates.length === 0) return res.status(204).end();
 
   const results = await Promise.all(
-    ordered_ids.map((id, position) =>
+    updates.map((u) =>
       supabase
         .from("tasks")
-        .update({ position })
-        .eq("id", id)
+        .update(u.patch)
+        .eq("id", u.id)
         .eq("project_id", projectId)
-        .eq("status", status)
     )
   );
   const failed = results.find((r) => r.error);
   if (failed?.error) {
     return res.status(500).json({ error: failed.error.message });
   }
+
+  const statusEvents: EventInput[] = updates
+    .filter((u) => u.fromStatus !== u.toStatus)
+    .map((u) => ({
+      task_id: u.id,
+      kind: "status_changed",
+      from_value: u.fromStatus,
+      to_value: u.toStatus,
+    }));
+  await logEvents(statusEvents);
+
   res.status(204).end();
 });

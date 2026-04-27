@@ -20,10 +20,13 @@ export function SortableTaskCard({
     isDragging,
   } = useSortable({ id: task.id });
 
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  // While this card is the active drag item, DragOverlay renders the floating
+  // preview. We hide the original to avoid a sliding shadow card causing
+  // layout jitter or horizontal scroll. Other (non-active) cards still animate
+  // out of the way via their own transform.
+  const style: React.CSSProperties = isDragging
+    ? { opacity: 0, pointerEvents: "none" }
+    : { transform: CSS.Transform.toString(transform), transition };
 
   return (
     <div
@@ -33,9 +36,7 @@ export function SortableTaskCard({
       {...listeners}
       className={clsx(
         "touch-none",
-        isDragging
-          ? "cursor-grabbing opacity-40"
-          : "cursor-grab active:cursor-grabbing"
+        isDragging ? "cursor-grabbing" : "cursor-grab active:cursor-grabbing"
       )}
     >
       <TaskCard task={task} onOpen={onOpen} />

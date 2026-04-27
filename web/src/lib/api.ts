@@ -105,25 +105,30 @@ export function useProjectTasks(id: string | undefined) {
   });
 }
 
+export interface ReorderColumns {
+  todo: string[];
+  in_progress: string[];
+  done: string[];
+}
+
 export function useReorderProjectTasks() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
       projectId,
-      status,
-      ordered_ids,
+      columns,
     }: {
       projectId: string;
-      status: Task["status"];
-      ordered_ids: string[];
+      columns: ReorderColumns;
     }) =>
-      http<void>(`/projects/${projectId}/tasks/order`, {
+      http<void>(`/projects/${projectId}/tasks/reorder`, {
         method: "PUT",
-        body: JSON.stringify({ status, ordered_ids }),
+        body: JSON.stringify(columns),
       }),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: qk.projectTasks(vars.projectId) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: qk.projects });
     },
   });
 }
