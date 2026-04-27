@@ -105,6 +105,29 @@ export function useProjectTasks(id: string | undefined) {
   });
 }
 
+export function useReorderProjectTasks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      status,
+      ordered_ids,
+    }: {
+      projectId: string;
+      status: Task["status"];
+      ordered_ids: string[];
+    }) =>
+      http<void>(`/projects/${projectId}/tasks/order`, {
+        method: "PUT",
+        body: JSON.stringify({ status, ordered_ids }),
+      }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: qk.projectTasks(vars.projectId) });
+      qc.invalidateQueries({ queryKey: qk.allTasks });
+    },
+  });
+}
+
 /* ---------- Tasks ---------- */
 
 export function useAllTasks() {

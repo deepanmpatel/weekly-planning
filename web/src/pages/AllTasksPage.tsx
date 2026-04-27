@@ -31,6 +31,21 @@ export function AllTasksPage() {
       arr.push(t);
       map.set(key, arr);
     }
+    // Within each project, sort by status (To-Do → In Progress → Done),
+    // then by position (matches the project page's drag order),
+    // then by creation time as a stable tiebreaker.
+    const statusRank: Record<Task["status"], number> = {
+      todo: 0,
+      in_progress: 1,
+      done: 2,
+    };
+    for (const list of map.values()) {
+      list.sort((a, b) => {
+        if (a.status !== b.status) return statusRank[a.status] - statusRank[b.status];
+        if (a.position !== b.position) return a.position - b.position;
+        return a.created_at.localeCompare(b.created_at);
+      });
+    }
     return map;
   }, [filtered]);
 

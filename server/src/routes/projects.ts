@@ -1,6 +1,7 @@
 import { Router } from "express";
+import { z } from "zod";
 import { supabase } from "../supabase.js";
-import { projectCreate, projectUpdate } from "../schemas.js";
+import { projectCreate, projectUpdate, statusEnum } from "../schemas.js";
 
 export const projectsRouter = Router();
 
@@ -117,4 +118,34 @@ projectsRouter.get("/:id/tasks", async (req, res) => {
     }
   }
   res.json(roots);
+});
+
+const reorderSchema = z.object({
+  status: statusEnum,
+  ordered_ids: z.array(z.string().uuid()),
+});
+
+projectsRouter.put("/:id/tasks/order", async (req, res) => {
+  const parsed = reorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const { status, ordered_ids } = parsed.data;
+  const projectId = req.params.id;
+
+  const results = await Promise.all(
+    ordered_ids.map((id, position) =>
+      supabase
+        .from("tasks")
+        .update({ position })
+        .eq("id", id)
+        .eq("project_id", projectId)
+        .eq("status", status)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) {
+    return res.status(500).json({ error: failed.error.message });
+  }
+  res.status(204).end();
 });

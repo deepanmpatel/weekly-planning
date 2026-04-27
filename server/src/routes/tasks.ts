@@ -36,6 +36,8 @@ tasksRouter.get("/", async (_req, res) => {
   const { data: tasks, error } = await supabase
     .from("tasks")
     .select("*")
+    .order("project_id", { ascending: true })
+    .order("position", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) return res.status(500).json({ error: error.message });
   const { data: projects } = await supabase.from("projects").select("id, name");
