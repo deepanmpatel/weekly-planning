@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -10,12 +10,10 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import {
@@ -25,6 +23,14 @@ import {
 } from "../lib/api";
 import type { Status, Task } from "../lib/types";
 import { STATUS_LABEL, STATUS_ORDER } from "../lib/types";
+import {
+  applyDrop,
+  applyGroupedToCache,
+  emptyGrouped,
+  groupByStatus,
+  toReorderColumns,
+  type Grouped,
+} from "../lib/dragLogic";
 import { TaskCard } from "../components/TaskCard";
 import { SortableTaskCard } from "../components/SortableTaskCard";
 import { NewTaskInline } from "../components/NewTaskInline";
@@ -35,26 +41,6 @@ const COLUMN_BG: Record<Status, string> = {
   in_progress: "bg-amber-50",
   done: "bg-emerald-50",
 };
-
-type Grouped = Record<Status, Task[]>;
-
-function groupByStatus(tasks: Task[]): Grouped {
-  const out: Grouped = { todo: [], in_progress: [], done: [] };
-  for (const t of tasks) out[t.status].push(t);
-  return out;
-}
-
-function isStatusId(id: unknown): id is Status {
-  return id === "todo" || id === "in_progress" || id === "done";
-}
-
-function findContainer(grouped: Grouped, id: string): Status | null {
-  if (isStatusId(id)) return id;
-  for (const s of STATUS_ORDER) {
-    if (grouped[s].some((t) => t.id === id)) return s;
-  }
-  return null;
-}
 
 function Column({
   status,
@@ -81,7 +67,7 @@ function Column({
       <div
         ref={setNodeRef}
         className={`flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-lg px-1 transition-colors ${
-          isOver ? "bg-white/40 ring-2 ring-blue-300/60" : ""
+          isOver ? "bg-white/50 ring-2 ring-blue-300/60" : ""
         }`}
       >
         <SortableContext
@@ -115,14 +101,9 @@ export function ProjectPage() {
   const qc = useQueryClient();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
-  // Local state mirrors server state during drag for instant feedback.
-  const [grouped, setGrouped] = useState<Grouped>({
-    todo: [],
-    in_progress: [],
-    done: [],
-  });
-  // Snapshot taken on dragStart so we can compute changes on dragEnd.
-  const dragStartSnapshot = useRef<Grouped | null>(null);
+  // Mirror server state locally so we can render the dropped position
+  // immediately without waiting for the refetch.
+  const [grouped, setGrouped] = useState<Grouped>(emptyGrouped);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -143,119 +124,25 @@ export function ProjectPage() {
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
-    dragStartSnapshot.current = {
-      todo: [...grouped.todo],
-      in_progress: [...grouped.in_progress],
-      done: [...grouped.done],
-    };
-  }
-
-  function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event;
-    if (!over) return;
-    const activeIdStr = String(active.id);
-    const overIdStr = String(over.id);
-
-    setGrouped((prev) => {
-      const activeContainer = findContainer(prev, activeIdStr);
-      const overContainer = findContainer(prev, overIdStr);
-      if (!activeContainer || !overContainer) return prev;
-      if (activeContainer === overContainer) return prev;
-
-      const activeItems = prev[activeContainer];
-      const overItems = prev[overContainer];
-      const activeIndex = activeItems.findIndex((t) => t.id === activeIdStr);
-      if (activeIndex === -1) return prev;
-
-      let overIndex: number;
-      if (isStatusId(overIdStr)) {
-        // Hovering over the column itself (e.g. empty column)
-        overIndex = overItems.length;
-      } else {
-        const idx = overItems.findIndex((t) => t.id === overIdStr);
-        overIndex = idx === -1 ? overItems.length : idx;
-      }
-
-      const moving = { ...activeItems[activeIndex], status: overContainer };
-      return {
-        ...prev,
-        [activeContainer]: activeItems.filter(
-          (t) => t.id !== activeIdStr
-        ),
-        [overContainer]: [
-          ...overItems.slice(0, overIndex),
-          moving,
-          ...overItems.slice(overIndex),
-        ],
-      };
-    });
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
     setActiveId(null);
-    if (!id) return;
-    if (!over) {
-      // Cancelled mid-air: revert to snapshot
-      if (dragStartSnapshot.current) setGrouped(dragStartSnapshot.current);
-      dragStartSnapshot.current = null;
-      return;
-    }
+    const { active, over } = event;
+    if (!over || !id) return;
 
-    const activeIdStr = String(active.id);
-    const overIdStr = String(over.id);
+    const next = applyDrop(grouped, String(active.id), String(over.id));
+    if (!next) return;
 
-    setGrouped((prev) => {
-      const container = findContainer(prev, activeIdStr);
-      if (!container) return prev;
-      // Within-column reorder (cross-column moves were handled in dragOver)
-      const list = prev[container];
-      const oldIdx = list.findIndex((t) => t.id === activeIdStr);
-      const newIdx = isStatusId(overIdStr)
-        ? list.length - 1
-        : list.findIndex((t) => t.id === overIdStr);
-      if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
-      return { ...prev, [container]: arrayMove(list, oldIdx, newIdx) };
-    });
-
-    // Persist with the just-computed state.
-    setGrouped((prev) => {
-      // Optimistically update cached list so AllTasksPage etc. see new order.
-      qc.setQueryData<Task[]>(["projects", id, "tasks"], (old) => {
-        if (!old) return old;
-        const next: Task[] = [];
-        for (const s of STATUS_ORDER) {
-          prev[s].forEach((t, i) => {
-            const existing = old.find((o) => o.id === t.id);
-            if (existing) {
-              next.push({ ...existing, status: s, position: i });
-            }
-          });
-        }
-        // Preserve any tasks not in the columns (subtasks etc.)
-        for (const o of old) {
-          if (!next.some((n) => n.id === o.id)) next.push(o);
-        }
-        return next;
-      });
-
-      reorder.mutate({
-        projectId: id,
-        columns: {
-          todo: prev.todo.map((t) => t.id),
-          in_progress: prev.in_progress.map((t) => t.id),
-          done: prev.done.map((t) => t.id),
-        },
-      });
-      return prev;
-    });
-    dragStartSnapshot.current = null;
+    setGrouped(next);
+    qc.setQueryData<Task[]>(["projects", id, "tasks"], (old) =>
+      applyGroupedToCache(old, next)
+    );
+    reorder.mutate({ projectId: id, columns: toReorderColumns(next) });
   }
 
   function handleDragCancel() {
     setActiveId(null);
-    if (dragStartSnapshot.current) setGrouped(dragStartSnapshot.current);
-    dragStartSnapshot.current = null;
   }
 
   if (!id) return null;
@@ -292,7 +179,6 @@ export function ProjectPage() {
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >

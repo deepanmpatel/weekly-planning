@@ -4,6 +4,7 @@ import {
   useAllowedEmails,
   useMe,
   useRemoveAllowedEmail,
+  useRemoveUser,
   useSetUserAdmin,
   useUsers,
 } from "../lib/api";
@@ -16,6 +17,7 @@ export function AdminPage() {
   const addEmail = useAddAllowedEmail();
   const removeEmail = useRemoveAllowedEmail();
   const setAdmin = useSetUserAdmin();
+  const removeUser = useRemoveUser();
 
   const [newEmail, setNewEmail] = useState("");
   const [formErr, setFormErr] = useState<string | null>(null);
@@ -185,6 +187,30 @@ export function AdminPage() {
                         />
                         Admin
                       </label>
+                      <button
+                        onClick={() => {
+                          if (isMe) return;
+                          const label = u.display_name ?? u.email ?? "this user";
+                          if (
+                            confirm(
+                              `Remove ${label}?\n\n` +
+                                `This deletes their account, removes them from the allowlist, ` +
+                                `and unassigns any tasks they own. This cannot be undone.`
+                            )
+                          ) {
+                            removeUser.mutate(u.id);
+                          }
+                        }}
+                        disabled={isMe || removeUser.isPending}
+                        title={
+                          isMe
+                            ? "You can't remove yourself"
+                            : "Remove user (deletes account + unassigns tasks)"
+                        }
+                        className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-500"
+                      >
+                        Remove
+                      </button>
                     </li>
                   );
                 })}

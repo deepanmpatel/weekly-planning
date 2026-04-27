@@ -74,3 +74,35 @@ adminRouter.patch("/users/:id", async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
+
+// Hard-delete a signed-in user. Cascades:
+//   auth.users → profiles (FK on delete cascade)
+//   auth.users → tasks.assignee_id (set null)
+//   auth.users → allowed_emails.added_by (set null)
+// Also removes their email from allowed_emails so they can't re-sign-in without re-approval.
+adminRouter.delete("/users/:id", async (req, res) => {
+  const targetId = req.params.id;
+  if (targetId === req.user!.id) {
+    return res.status(400).json({ error: "cannot_remove_self" });
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", targetId)
+    .maybeSingle();
+
+  const { error: deleteErr } = await supabase.auth.admin.deleteUser(targetId);
+  if (deleteErr) {
+    return res.status(500).json({ error: deleteErr.message });
+  }
+
+  if (profile?.email) {
+    await supabase
+      .from("allowed_emails")
+      .delete()
+      .ilike("email", profile.email);
+  }
+
+  res.status(204).end();
+});

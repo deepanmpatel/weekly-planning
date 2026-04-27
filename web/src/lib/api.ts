@@ -340,3 +340,17 @@ export function useSetUserAdmin() {
     },
   });
 }
+
+export function useRemoveUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      http<void>(`/admin/users/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.users });
+      qc.invalidateQueries({ queryKey: qk.allowedEmails });
+      qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
