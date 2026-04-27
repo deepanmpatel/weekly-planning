@@ -18,7 +18,10 @@
       "Bash(curl -s http://localhost:5173/src/lib/demoMode.ts)",
       "Bash(sh -c 'echo \"From sh: VITE_DEMO_MODE=$VITE_DEMO_MODE\"')",
       "Bash(kill 4464 4465 8019 8020)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(grep -E '\\\\.env$')",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
