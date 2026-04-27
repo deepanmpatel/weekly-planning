@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -29,7 +29,6 @@ import {
   emptyGrouped,
   groupByStatus,
   toReorderColumns,
-  type Grouped,
 } from "../lib/dragLogic";
 import { TaskCard } from "../components/TaskCard";
 import { SortableTaskCard } from "../components/SortableTaskCard";
@@ -95,32 +94,34 @@ function Column({
 
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: tasks = [], isLoading } = useProjectTasks(id);
+  const { data, isLoading } = useProjectTasks(id);
   const { data: projects = [] } = useProjects();
   const reorder = useReorderProjectTasks();
   const qc = useQueryClient();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
-
-  // Mirror server state locally so we can render the dropped position
-  // immediately without waiting for the refetch.
-  const [grouped, setGrouped] = useState<Grouped>(emptyGrouped);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setGrouped(groupByStatus(tasks));
-  }, [tasks]);
+  // Derived (NOT state). When `data` is stable, this is memoized stable too.
+  // When the cache updates (after a drop), `data` flips to the new reference
+  // and `grouped` recomputes. No useEffect, no setGrouped, no loop.
+  const grouped = useMemo(
+    () => (data ? groupByStatus(data) : emptyGrouped()),
+    [data]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
   const project = projects.find((p) => p.id === id);
+
   const tasksById = useMemo(() => {
     const map = new Map<string, Task>();
-    for (const t of tasks) map.set(t.id, t);
+    for (const t of data ?? []) map.set(t.id, t);
     return map;
-  }, [tasks]);
+  }, [data]);
   const activeTask = activeId ? tasksById.get(activeId) ?? null : null;
+  const taskCount = data?.length ?? 0;
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
@@ -134,7 +135,8 @@ export function ProjectPage() {
     const next = applyDrop(grouped, String(active.id), String(over.id));
     if (!next) return;
 
-    setGrouped(next);
+    // Single source of truth: update the query cache. The useMemo above
+    // recomputes `grouped` from the new cache value on the next render.
     qc.setQueryData<Task[]>(["projects", id, "tasks"], (old) =>
       applyGroupedToCache(old, next)
     );
@@ -159,7 +161,7 @@ export function ProjectPage() {
           </h1>
         </div>
         <div className="text-xs text-ink-500 tabular-nums">
-          {tasks.length} tasks · {grouped.done.length} done
+          {taskCount} tasks · {grouped.done.length} done
         </div>
       </header>
 

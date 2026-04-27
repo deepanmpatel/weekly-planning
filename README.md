@@ -26,7 +26,14 @@ Authentication → **Providers → Google**:
 - Create OAuth 2.0 credentials in [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) with `Authorized redirect URI = https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`.
 - Paste the Client ID + Secret into Supabase and toggle the provider on.
 
-Authentication → **URL Configuration** → add `http://localhost:5173` (and your production URL later) to **Site URL** and **Redirect URLs**.
+Authentication → **URL Configuration**:
+
+- **Site URL**: production URL (e.g. `https://your-app.vercel.app`). This is the *fallback* — Supabase sends users here when no other allowed redirect matches the OAuth `redirectTo` parameter.
+- **Redirect URLs**: add **both** of these — comma-separated or one per line depending on the UI:
+  - `http://localhost:5173/**`
+  - `https://your-app.vercel.app/**`
+
+The trailing `/**` is important: Supabase wildcards path segments. With just `http://localhost:5173`, the OAuth flow that returns to `http://localhost:5173/?code=...` won't match → Supabase falls back to Site URL → you get bounced to Vercel even when running locally. Adding `http://localhost:5173/**` fixes the "localhost login redirects to Vercel" symptom.
 
 ### 4. Configure env
 ```bash

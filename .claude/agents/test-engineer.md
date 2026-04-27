@@ -52,11 +52,22 @@ If no test framework exists yet:
 - Live in `web/src/__tests__/` or alongside source as `*.test.tsx`.
 
 ### Smoke E2E (keep tight — 3–5 tests max)
-- Sign in (use a known test user via Supabase admin createUser if available, or document a fixture flow).
-- Create a project → add a task → drag to reorder → assert order persists across reload.
-- Open a task → add a comment → assert it appears in Activity.
-- Admin allowlist round-trip: add email, verify it shows; remove, verify it disappears.
-- Live in `e2e/`.
+Two flavors, run independently:
+
+1. **Demo-mode E2E** (preferred for golden-path coverage; no infra dependencies, deterministic, fast).
+   - Run against `npm run dev:demo`.
+   - Asserts the demo store and the UI behave together — catches whole classes of "feature only works against live backend" regressions.
+   - Live in `e2e/demo/`.
+2. **Live-backend E2E** (small, only for things demo can't cover, e.g. real OAuth flow, Supabase Auth admin path).
+   - Skip gracefully if `E2E_SUPABASE_URL` / `E2E_SUPABASE_SERVICE_ROLE_KEY` aren't set.
+   - Live in `e2e/live/`.
+
+Cases for demo-mode E2E:
+- Drag a project up/down in the sidebar → reload → order persists.
+- Drag a task within a column → reload → position persists.
+- Drag a task across columns → status updates + activity log shows `status_changed`.
+- Create a project → add a task → assignee picker shows demo users.
+- Admin allowlist round-trip: add email → list shows it; remove → list updates.
 
 ## Workflow
 

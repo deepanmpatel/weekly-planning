@@ -45,6 +45,7 @@ The hard rules are in the relevant `CLAUDE.md` files; trust them. The headline o
 - Migrations are numbered + idempotent + folded into `schema.sql`.
 - Prefer batch endpoints to N round-trips.
 - No new framework dependencies without explicit justification.
+- **Demo-mode parity is required.** The in-memory store at [web/src/lib/demo/demoStore.ts](../../web/src/lib/demo/demoStore.ts) MUST mirror every endpoint shape exactly. Any new endpoint, new body shape, or new response field has to ship together with a matching demo handler — otherwise `npm run dev:demo` and the preview-tool verification path break silently. Read [web/src/lib/demo/CLAUDE.md](../../web/src/lib/demo/CLAUDE.md) for the rules.
 
 ## Workflow
 
@@ -54,6 +55,7 @@ The hard rules are in the relevant `CLAUDE.md` files; trust them. The headline o
    - **Goal** (1–2 sentences, user-visible outcome)
    - **Data model changes** (SQL, including the migration filename)
    - **API surface** (each new/changed route: method, path, request body, response shape, which middleware gates it, auth/admin requirements)
+   - **Demo store changes** — for every new/changed endpoint, list the handler to add or update in [web/src/lib/demo/demoStore.ts](../../web/src/lib/demo/demoStore.ts). For new fields on existing entities, list the seed updates needed in [web/src/lib/demo/demoData.ts](../../web/src/lib/demo/demoData.ts). If you skip this section, the implementation will break demo mode silently.
    - **Frontend changes** (components added/modified, routes, hook additions to `web/src/lib/api.ts`, types added to `web/src/lib/types.ts`)
    - **Activity events** (any new `EventKind` values + when they fire)
    - **Performance / security notes** (specific concerns; e.g. "this endpoint reads N+1 → batch via select with `in()`")

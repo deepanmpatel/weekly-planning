@@ -8,6 +8,7 @@
     "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "npm --workspace asana-server run dev",
     "dev:web": "npm --workspace asana-web run dev",
+    "dev:demo": "npm --workspace asana-web run dev:demo",
     "seed": "npm --workspace asana-server run seed",
     "build": "npm --workspace asana-server run build && npm --workspace asana-web run build"
   },

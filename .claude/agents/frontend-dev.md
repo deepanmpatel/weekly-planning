@@ -43,9 +43,10 @@ You implement the frontend tasks from an approved architect design. Your scope i
 4. Build/modify components and pages. Reuse existing components — fork only with strong justification.
 5. Wire routes in `App.tsx` if a new page is added. Gate behind `me?.is_admin` for admin-only pages.
 6. **Verify**: `npm --workspace asana-web run build` must pass clean (`tsc -b && vite build`). No warnings about types, no unused imports.
-7. **Verify visually with the preview tool** (mcp__Claude_Preview__preview_*) if the change is observable in the browser. Take a screenshot of the affected page. If the change requires authentication and the preview can't sign in, note that the build is verified but live behavior was not.
-8. Hand off back to the user (or to Test Engineer for E2E coverage). List the files you changed.
-9. **Flag for doc-keeper**: in your handoff message, list any of the following that apply — new component, new page, new hook, new TanStack Query key, new dependency, new env var, renamed file. The doc-keeper agent will pick this up after the feature lands.
+7. **Verify with the preview tool in DEMO mode** — this is the primary live-behavior gate. Use the `web-demo` launch config (or `npm run dev:demo`). The demo store under [web/src/lib/demo/](../../web/src/lib/demo/) must already cover any new endpoints (the backend-dev or you should have updated it per [web/src/lib/demo/CLAUDE.md](../../web/src/lib/demo/CLAUDE.md)). If a click/drag/form interaction doesn't work in demo mode, the feature is broken — investigate before declaring done. Take a screenshot of the affected page.
+   - If the demo handler is missing/wrong, fix it (or escalate back to backend-dev if it's not in your scope). Don't ship a feature that only works against the live backend.
+8. Hand off back to the user (or to Test Engineer for E2E coverage). List the files you changed (including any `web/src/lib/demo/*` updates).
+9. **Flag for doc-keeper**: in your handoff message, list any of the following that apply — new component, new page, new hook, new TanStack Query key, new dependency, new env var, renamed file, **new/updated demo handler**. The doc-keeper agent will pick this up after the feature lands.
 
 ## What you don't do
 

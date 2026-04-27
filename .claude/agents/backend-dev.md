@@ -35,15 +35,20 @@ You implement the backend tasks from an approved architect design. Your scope is
 
 ## Workflow
 
-1. Read the architect's design. Identify the **Backend tasks** checklist.
+1. Read the architect's design. Identify the **Backend tasks** checklist and the **Demo store changes** section.
 2. Apply migrations first: write `server/sql/000N_<name>.sql`, then update `server/sql/schema.sql` with the same change (idempotent so re-runs are safe).
 3. Update `schemas.ts` if new request bodies are involved.
 4. Update or create routers under `server/src/routes/`. Mount in `app.ts`.
 5. Wire up event logging if the design calls for new event kinds.
-6. **Verify**: `npm --workspace asana-server run build` must pass clean. If it fails, fix the cause; do not add `// @ts-ignore`. Also typecheck the Vercel wrapper if its imports might have shifted: `cd api && npx tsc --noEmit`.
-7. Manual smoke (when possible without auth): `curl -i http://localhost:3001/health` returns 200; `curl -i http://localhost:3001/<new-route>` returns 401 (proves the route is mounted under requireAuth).
-8. Hand off to Test Engineer / Frontend Dev. List the files you changed.
-9. **Flag for doc-keeper**: in your handoff message, list any of the following that apply — new endpoint, new column/table, new EventKind, new env var, new pattern, renamed file. The doc-keeper agent will pick this up after the feature lands.
+6. **Mirror in the demo store.** For every new or changed Express route, add or update the matching handler in [web/src/lib/demo/demoStore.ts](../../web/src/lib/demo/demoStore.ts). The shape (request body, response body, status semantics) MUST match the real route exactly. If the route logs a `task_event`, the demo handler must call `logEvent` with the same kind/from/to. If the seed data needs new fields (e.g. you added `tasks.assignee_id`), update [web/src/lib/demo/demoData.ts](../../web/src/lib/demo/demoData.ts). Read [web/src/lib/demo/CLAUDE.md](../../web/src/lib/demo/CLAUDE.md) before touching these files. **A change that lands without demo parity is incomplete.**
+7. **Verify both backends**:
+   - `npm --workspace asana-server run build` must pass clean.
+   - `npm --workspace asana-web run build` must pass clean (the demo store typechecks against `web/src/lib/types.ts`).
+   - Typecheck the Vercel wrapper if its imports might have shifted: `cd api && npx tsc --noEmit`.
+8. Manual smoke for the Express side: `curl -i http://localhost:3001/health` returns 200; `curl -i http://localhost:3001/<new-route>` returns 401 (proves the route is mounted under requireAuth).
+9. **Demo smoke**: start `npm run dev:demo` (or use the preview tool's `web-demo` config). Trigger the feature in the browser. Confirm it works without a backend running. If it doesn't, your demo handler is wrong.
+10. Hand off to Test Engineer / Frontend Dev. List the files you changed (server-side AND demo-store-side).
+11. **Flag for doc-keeper**: in your handoff message, list any of the following that apply — new endpoint, new column/table, new EventKind, new env var, new pattern, renamed file, **new demo handler**. The doc-keeper agent will pick this up after the feature lands.
 
 ## What you don't do
 

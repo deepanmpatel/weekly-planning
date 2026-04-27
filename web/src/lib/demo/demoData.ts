@@ -1,0 +1,292 @@
+// Seed data for demo mode. Resets to this state on every page load (no
+// persistence). Used only when VITE_DEMO_MODE=true.
+
+import type {
+  AllowedEmail,
+  Comment,
+  Profile,
+  Project,
+  Tag,
+  Task,
+  TaskEvent,
+} from "../types";
+
+const NOW = "2026-04-26T18:00:00Z";
+
+export const DEMO_ME_ID = "u-demo";
+
+export const demoUsers: Profile[] = [
+  {
+    id: DEMO_ME_ID,
+    email: "demo@example.com",
+    display_name: "Demo User",
+    avatar_url: null,
+    is_admin: true,
+    is_allowed: true,
+  },
+  {
+    id: "u-alice",
+    email: "alice@example.com",
+    display_name: "Alice",
+    avatar_url: null,
+    is_admin: false,
+    is_allowed: true,
+  },
+  {
+    id: "u-bob",
+    email: "bob@example.com",
+    display_name: "Bob",
+    avatar_url: null,
+    is_admin: false,
+    is_allowed: true,
+  },
+];
+
+export const demoProjects: Project[] = [
+  { id: "p-family", name: "Family Projects", position: 1, created_at: NOW },
+  { id: "p-banyan", name: "Little Banyan", position: 2, created_at: NOW },
+  {
+    id: "p-personal",
+    name: "Personal Development",
+    position: 3,
+    created_at: NOW,
+  },
+];
+
+export const demoTags: Tag[] = [
+  { id: "tag-high", name: "High", color: "#ef4444" },
+  { id: "tag-med", name: "Medium", color: "#eab308" },
+];
+
+export const demoTasks: Task[] = [
+  // Family Projects
+  {
+    id: "t-1",
+    project_id: "p-family",
+    parent_task_id: null,
+    assignee_id: DEMO_ME_ID,
+    name: "Plan Hawaii trip",
+    description: "Pick dates, book flights, find a place to stay.",
+    status: "todo",
+    due_date: "2026-05-15",
+    completed_at: null,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-2",
+    project_id: "p-family",
+    parent_task_id: null,
+    assignee_id: "u-alice",
+    name: "Install blinds in living room",
+    description: "Two windows. Black-out, not blackout.",
+    status: "in_progress",
+    due_date: null,
+    completed_at: null,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-3",
+    project_id: "p-family",
+    parent_task_id: null,
+    assignee_id: null,
+    name: "File sales tax for CA",
+    description: "Use Shopify analytics > reports > tax collected.",
+    status: "todo",
+    due_date: "2026-04-30",
+    completed_at: null,
+    position: 1,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-4",
+    project_id: "p-family",
+    parent_task_id: null,
+    assignee_id: DEMO_ME_ID,
+    name: "Organize reminders",
+    description: "",
+    status: "done",
+    due_date: null,
+    completed_at: NOW,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+
+  // Little Banyan
+  {
+    id: "t-5",
+    project_id: "p-banyan",
+    parent_task_id: null,
+    assignee_id: DEMO_ME_ID,
+    name: "Launch in India",
+    description: "BIS certification + import/export partner.",
+    status: "in_progress",
+    due_date: null,
+    completed_at: null,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-5a",
+    project_id: "p-banyan",
+    parent_task_id: "t-5",
+    assignee_id: null,
+    name: "Find import/export person",
+    description: "",
+    status: "todo",
+    due_date: null,
+    completed_at: null,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-5b",
+    project_id: "p-banyan",
+    parent_task_id: "t-5",
+    assignee_id: null,
+    name: "Find someone for BIS certification",
+    description: "",
+    status: "todo",
+    due_date: null,
+    completed_at: null,
+    position: 1,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-5c",
+    project_id: "p-banyan",
+    parent_task_id: "t-5",
+    assignee_id: null,
+    name: "Loop in Derek about new direction",
+    description: "",
+    status: "done",
+    due_date: null,
+    completed_at: NOW,
+    position: 2,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-6",
+    project_id: "p-banyan",
+    parent_task_id: null,
+    assignee_id: "u-bob",
+    name: "Fix Shopify reviews",
+    description: "Air Reviews vs Judge.me — sort out which one is live.",
+    status: "todo",
+    due_date: null,
+    completed_at: null,
+    position: 1,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-7",
+    project_id: "p-banyan",
+    parent_task_id: null,
+    assignee_id: null,
+    name: "Make website ADA compliant",
+    description: "",
+    status: "todo",
+    due_date: null,
+    completed_at: null,
+    position: 2,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+
+  // Personal Development
+  {
+    id: "t-8",
+    project_id: "p-personal",
+    parent_task_id: null,
+    assignee_id: DEMO_ME_ID,
+    name: "Start following cricket",
+    description: "",
+    status: "todo",
+    due_date: null,
+    completed_at: null,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "t-9",
+    project_id: "p-personal",
+    parent_task_id: null,
+    assignee_id: DEMO_ME_ID,
+    name: "Learn humor and conversation skills",
+    description: "How to start and keep things going.",
+    status: "in_progress",
+    due_date: null,
+    completed_at: null,
+    position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+];
+
+export const demoTaskTags: { task_id: string; tag_id: string }[] = [
+  { task_id: "t-1", tag_id: "tag-high" },
+  { task_id: "t-3", tag_id: "tag-high" },
+  { task_id: "t-5", tag_id: "tag-med" },
+];
+
+export const demoComments: Comment[] = [
+  {
+    id: "c-1",
+    task_id: "t-5",
+    body: "Spoke with Derek — he's on board with the new direction.",
+    created_at: NOW,
+  },
+];
+
+export const demoEvents: TaskEvent[] = [
+  {
+    id: "e-1",
+    task_id: "t-4",
+    kind: "created",
+    from_value: null,
+    to_value: "Organize reminders",
+    meta: {},
+    created_at: NOW,
+  },
+  {
+    id: "e-2",
+    task_id: "t-4",
+    kind: "status_changed",
+    from_value: "todo",
+    to_value: "done",
+    meta: {},
+    created_at: NOW,
+  },
+];
+
+export const demoAllowedEmails: AllowedEmail[] = [
+  {
+    id: "ae-1",
+    email: "demo@example.com",
+    added_by: null,
+    created_at: NOW,
+  },
+  {
+    id: "ae-2",
+    email: "alice@example.com",
+    added_by: DEMO_ME_ID,
+    created_at: NOW,
+  },
+  {
+    id: "ae-3",
+    email: "bob@example.com",
+    added_by: DEMO_ME_ID,
+    created_at: NOW,
+  },
+];

@@ -56,9 +56,14 @@ npm --workspace asana-web run build   # tsc -b && vite build
 - Local dev: set `VITE_API_BASE=http://localhost:3001` in `web/.env`.
 - Production (Vercel): leave unset — code defaults to `/api`, Vercel rewrites that to the function.
 
+## Demo mode
+
+`npm run dev:demo` sets `VITE_DEMO_MODE=true` and runs the frontend with an in-browser backend at [src/lib/demo/](src/lib/demo/). When you add or change an Express route, you **must** also update the matching demo handler — see [src/lib/demo/CLAUDE.md](src/lib/demo/CLAUDE.md) for the rules. Demo parity is the primary live-behavior verification path for the preview tool.
+
 ## Don't
 
 - Don't add new UI libraries (Radix, MUI, Headless UI, …) without architect approval.
 - Don't fork `TaskCard`. Add a prop.
 - Don't bypass `http()`.
 - Don't silence type errors with `as any` / `// @ts-ignore`. Fix the underlying type.
+- Don't ship a feature without verifying it works in `dev:demo`.

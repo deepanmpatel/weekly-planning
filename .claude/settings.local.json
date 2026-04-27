@@ -14,7 +14,11 @@
       "Bash(curl -i -H \"Authorization: Bearer invalidtoken\" http://localhost:3001/projects)",
       "mcp__Claude_Preview__preview_start",
       "Read(//Users/deepankumar.patel/**)",
-      "Bash(echo \"---exit:$?\")"
+      "Bash(echo \"---exit:$?\")",
+      "Bash(curl -s http://localhost:5173/src/lib/demoMode.ts)",
+      "Bash(sh -c 'echo \"From sh: VITE_DEMO_MODE=$VITE_DEMO_MODE\"')",
+      "Bash(kill 4464 4465 8019 8020)",
+      "Bash(git add *)"
     ]
   }
 }

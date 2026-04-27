@@ -12,12 +12,16 @@ import type {
   Task,
 } from "./types";
 import { getAccessToken } from "./auth";
+import { DEMO_MODE } from "./demoMode";
+import { demoFetch } from "./demo/demoStore";
 
 // Dev (.env has explicit URL) → http://localhost:3001 + /projects, etc.
 // Prod (Vercel, no env var) → "/api" + /projects → Vercel rewrite → Express function.
 const BASE = import.meta.env.VITE_API_BASE || "/api";
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  if (DEMO_MODE) return demoFetch<T>(path, init);
+
   const token = await getAccessToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -94,6 +98,18 @@ export function useDeleteProject() {
       qc.invalidateQueries({ queryKey: qk.projects });
       qc.invalidateQueries({ queryKey: qk.allTasks });
     },
+  });
+}
+
+export function useReorderProjects() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ordered_ids: string[]) =>
+      http<void>("/projects/order", {
+        method: "PUT",
+        body: JSON.stringify({ ordered_ids }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.projects }),
   });
 }
 

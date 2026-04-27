@@ -14,10 +14,15 @@ Single Vercel project hosts everything; `vercel.json` rewrites `/api/(.*)` → t
 ```bash
 npm install                                     # workspaces hoist
 npm run dev                                     # web :5173, server :3001 (concurrently)
+npm run dev:demo                                # web :5173 only, in-memory data, no backend/Supabase
 npm --workspace asana-server run build          # tsc
 npm --workspace asana-web run build             # tsc -b && vite build
 npm run seed                                    # one-shot CSV import (bails if DB non-empty)
 ```
+
+## Demo mode
+
+`npm run dev:demo` sets `VITE_DEMO_MODE=true` and runs only the Vite dev server. The frontend swaps the `http()` layer for an in-memory router under [web/src/lib/demo/](web/src/lib/demo/) and provides a fake auth session, so you can exercise the full UI (drag-drop, admin page, comments, activity log) without setting up Supabase. Refresh resets the data.
 
 ## Knowledge base map (read on demand)
 
@@ -50,6 +55,7 @@ Agent definitions: [.claude/agents/](.claude/agents/).
 - Migrations are additive, numbered (`0001_…sql`), and idempotent. Schema.sql is the canonical fold-in.
 - Subtasks are tasks (`tasks.parent_task_id`). Don't propose a separate table.
 - Single shared `TaskCard` everywhere a task renders. Add a prop, don't fork.
+- **Demo-mode parity is required.** Every Express route also has a handler in [web/src/lib/demo/demoStore.ts](web/src/lib/demo/demoStore.ts). Adding/changing a route without updating its demo handler is an incomplete change. See [web/src/lib/demo/CLAUDE.md](web/src/lib/demo/CLAUDE.md).
 
 ## After every meaningful change
 

@@ -81,6 +81,27 @@ projectsRouter.delete("/:id", async (req, res) => {
   res.status(204).end();
 });
 
+const projectsReorderSchema = z.object({
+  ordered_ids: z.array(z.string().uuid()),
+});
+
+projectsRouter.put("/order", async (req, res) => {
+  const parsed = projectsReorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const results = await Promise.all(
+    parsed.data.ordered_ids.map((id, position) =>
+      supabase.from("projects").update({ position }).eq("id", id)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) {
+    return res.status(500).json({ error: failed.error.message });
+  }
+  res.status(204).end();
+});
+
 projectsRouter.get("/:id/tasks", async (req, res) => {
   const projectId = req.params.id;
   const { data: tasks, error } = await supabase
