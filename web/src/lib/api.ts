@@ -49,6 +49,7 @@ const qk = {
   projects: ["projects"] as const,
   projectTasks: (id: string) => ["projects", id, "tasks"] as const,
   allTasks: ["tasks"] as const,
+  todayTasks: ["tasks", "today"] as const,
   task: (id: string) => ["tasks", id] as const,
   tags: ["tags"] as const,
   users: ["users"] as const,
@@ -159,6 +160,37 @@ export function useAllTasks() {
   });
 }
 
+export function useTodayTasks() {
+  return useQuery({
+    queryKey: qk.todayTasks,
+    queryFn: () => http<Task[]>("/tasks/today"),
+    staleTime: 0,
+  });
+}
+
+export function useReorderTodayCell() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      project_id,
+      status,
+      ids,
+    }: {
+      project_id: string;
+      status: Task["status"];
+      ids: string[];
+    }) =>
+      http<void>("/tasks/today/reorder", {
+        method: "PUT",
+        body: JSON.stringify({ project_id, status, ids }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.todayTasks });
+      qc.invalidateQueries({ queryKey: qk.allTasks });
+    },
+  });
+}
+
 export function useTask(id: string | undefined) {
   return useQuery({
     queryKey: id ? qk.task(id) : ["tasks", "none"],
@@ -206,6 +238,7 @@ export function useUpdateTask() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: qk.projectTasks(data.project_id) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: qk.todayTasks });
       qc.invalidateQueries({ queryKey: qk.task(data.id) });
       qc.invalidateQueries({ queryKey: qk.projects });
       if (data.parent_task_id)

@@ -36,6 +36,7 @@ export const taskUpdate = z.object({
   parent_task_id: z.string().uuid().nullish(),
   position: z.number().int().optional(),
   assignee_id: z.string().uuid().nullish(),
+  is_today: z.boolean().optional(),
 });
 
 export const commentCreate = z.object({

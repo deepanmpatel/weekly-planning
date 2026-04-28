@@ -15,6 +15,8 @@ const KIND_ICON: Record<TaskEvent["kind"], string> = {
   subtask_added: "➕",
   assigned: "👤",
   unassigned: "👤",
+  today_flagged: "⭐",
+  today_unflagged: "☆",
 };
 
 function formatDate(iso: string | null): string {
@@ -132,6 +134,10 @@ function renderDescription(e: TaskEvent): React.ReactNode {
           Unassigned (was <strong>{e.from_value}</strong>)
         </>
       );
+    case "today_flagged":
+      return <>Added to Today</>;
+    case "today_unflagged":
+      return <>Removed from Today</>;
     default:
       return <>Unknown event</>;
   }

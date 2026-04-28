@@ -23,6 +23,7 @@ src/
 └── pages/
     ├── AllTasksPage.tsx          ← grouped-by-project; honors task position
     ├── ProjectPage.tsx           ← three status columns; drag-and-drop reorder
+    ├── TodayPage.tsx             ← swim-lane kanban (rows=projects, cols=4 statuses) for is_today tasks
     ├── LoginPage.tsx             ← Google sign-in
     ├── AdminPage.tsx             ← allowlist + admin toggle (admins only)
     └── NotApprovedPage.tsx       ← shown when is_allowed === false

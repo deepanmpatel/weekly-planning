@@ -13,7 +13,9 @@ export type EventKind =
   | "comment_added"
   | "subtask_added"
   | "assigned"
-  | "unassigned";
+  | "unassigned"
+  | "today_flagged"
+  | "today_unflagged";
 
 export interface EventInput {
   task_id: string;

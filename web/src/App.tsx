@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { AllTasksPage } from "./pages/AllTasksPage";
 import { ProjectPage } from "./pages/ProjectPage";
+import TodayPage from "./pages/TodayPage";
 import { LoginPage } from "./pages/LoginPage";
 import { AdminPage } from "./pages/AdminPage";
 import { NotApprovedPage } from "./pages/NotApprovedPage";
@@ -43,6 +44,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<AllTasksPage />} />
           <Route path="/projects/:id" element={<ProjectPage />} />
+          <Route path="/today" element={<TodayPage />} />
           {me?.is_admin && (
             <Route path="/admin" element={<AdminPage />} />
           )}

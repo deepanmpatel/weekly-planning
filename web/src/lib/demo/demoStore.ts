@@ -52,6 +52,31 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function todayMidnightPtIso(): string {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date());
+  const get = (k: string) => Number(parts.find((p) => p.type === k)?.value);
+  const y = get("year");
+  const mo = get("month");
+  const d = get("day");
+  const h = get("hour") || 0;
+  const mi = get("minute") || 0;
+  const s = get("second") || 0;
+  const utcNow = Date.UTC(y, mo - 1, d, h, mi, s);
+  const offsetMs = utcNow - new Date().getTime();
+  const ptMidnightUtc = Date.UTC(y, mo - 1, d) - offsetMs;
+  return new Date(ptMidnightUtc).toISOString();
+}
+
 function logEvent(
   task_id: string,
   kind: TaskEventKind,
@@ -278,6 +303,65 @@ const handlers: Handler[] = [
   },
   {
     method: "GET",
+    pattern: /^\/tasks\/today$/,
+    fn: () => {
+      const cutoff = todayMidnightPtIso();
+      for (const t of tasks) {
+        if (
+          t.is_today &&
+          t.status === "done" &&
+          t.completed_at &&
+          t.completed_at < cutoff
+        ) {
+          t.is_today = false;
+        }
+      }
+      const projPos = new Map<string, number>();
+      for (const p of projects) projPos.set(p.id, p.position);
+      return tasks
+        .filter((t) => t.is_today)
+        .slice()
+        .sort((a, b) => {
+          const pa = projPos.get(a.project_id) ?? 0;
+          const pb = projPos.get(b.project_id) ?? 0;
+          if (pa !== pb) return pa - pb;
+          if (a.today_position !== b.today_position)
+            return a.today_position - b.today_position;
+          return a.created_at.localeCompare(b.created_at);
+        })
+        .map((t) => ({
+          ...t,
+          project_name: projectName(t.project_id),
+          tags: tagsForTask(t.id),
+          assignee: profileById(t.assignee_id),
+        }));
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/tasks\/today\/reorder$/,
+    fn: (_m, body) => {
+      const project_id = String(body?.project_id ?? "");
+      const status = String(body?.status ?? "") as Status;
+      const ids = (body?.ids ?? []) as string[];
+      if (!project_id || !status) throw new DemoBadRequest("invalid reorder");
+      ids.forEach((taskId, index) => {
+        const task = tasks.find(
+          (t) =>
+            t.id === taskId &&
+            t.project_id === project_id &&
+            t.status === status &&
+            t.is_today
+        );
+        if (!task) return;
+        task.today_position = index;
+        task.updated_at = nowIso();
+      });
+      return undefined;
+    },
+  },
+  {
+    method: "GET",
     pattern: /^\/tasks\/([^/]+)$/,
     fn: ([, id]) => {
       const task = tasks.find((t) => t.id === id);
@@ -327,6 +411,8 @@ const handlers: Handler[] = [
           typeof body?.position === "number"
             ? body.position
             : (siblings.at(-1)?.position ?? -1) + 1,
+        is_today: false,
+        today_position: 0,
         created_at: nowIso(),
         updated_at: nowIso(),
       };
@@ -360,6 +446,23 @@ const handlers: Handler[] = [
       if (body?.parent_task_id !== undefined)
         task.parent_task_id = body.parent_task_id;
       if (typeof body?.position === "number") task.position = body.position;
+      if (typeof body?.is_today === "boolean" && body.is_today !== before.is_today) {
+        task.is_today = body.is_today;
+        if (body.is_today) {
+          const peers = tasks.filter(
+            (t) =>
+              t.id !== task.id &&
+              t.is_today &&
+              t.project_id === task.project_id &&
+              t.status === task.status
+          );
+          const max = peers.reduce(
+            (m, t) => (t.today_position > m ? t.today_position : m),
+            -1
+          );
+          task.today_position = max + 1;
+        }
+      }
       task.updated_at = nowIso();
 
       if (before.name !== task.name)
@@ -376,6 +479,12 @@ const handlers: Handler[] = [
         if (task.assignee_id)
           logEvent(task.id, "assigned", fromName, toName);
         else logEvent(task.id, "unassigned", fromName);
+      }
+      if (before.is_today !== task.is_today) {
+        logEvent(
+          task.id,
+          task.is_today ? "today_flagged" : "today_unflagged"
+        );
       }
 
       return clone(task);

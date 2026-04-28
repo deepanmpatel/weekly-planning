@@ -47,7 +47,8 @@ requireAllowed                 ← gate everything below
 - **Status codes**: 200 read, 201 create-with-body, 204 no-body, 400 validation, 401 auth, 403 forbidden, 404 not-found, 409 conflict, 500 unexpected.
 - **Avoid N+1**: batch with `.in("col", ids)` then build a `Map`. See `attachTagsMany` and `fetchAssigneeMap` in [routes/tasks.ts](src/routes/tasks.ts).
 - **Activity events**: any task field change must call `logEvent`/`logEvents` after a successful update. New event kinds → extend `EventKind` in [events.ts](src/events.ts) AND mirror in [web/src/lib/types.ts](../web/src/lib/types.ts).
-- **Project_id + status guards on writes** that take a task id (defense against cross-project mutation). See `PUT /projects/:id/tasks/order` in [routes/projects.ts](src/routes/projects.ts).
+- **Project_id + status guards on writes** that take a task id (defense against cross-project mutation). See `PUT /projects/:id/tasks/order` in [routes/projects.ts](src/routes/projects.ts). The Today reorder (`PUT /tasks/today/reorder`) additionally guards on `is_today=true`.
+- **TZ-anchored cutoffs** (e.g. "before today's PT midnight") use `Intl.DateTimeFormat` to derive the offset rather than hard-coding it. See `todayPtMidnightUtcIso()` in [routes/tasks.ts](src/routes/tasks.ts) — mirror the algorithm in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts) when reusing.
 - **No comments** unless the *why* is non-obvious.
 
 ## Migrations

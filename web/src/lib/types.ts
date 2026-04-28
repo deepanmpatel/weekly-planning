@@ -49,7 +49,9 @@ export type TaskEventKind =
   | "comment_added"
   | "subtask_added"
   | "assigned"
-  | "unassigned";
+  | "unassigned"
+  | "today_flagged"
+  | "today_unflagged";
 
 export interface Profile {
   id: string;
@@ -88,6 +90,8 @@ export interface Task {
   due_date: string | null;
   completed_at: string | null;
   position: number;
+  is_today: boolean;
+  today_position: number;
   created_at: string;
   updated_at: string;
   tags?: Tag[];

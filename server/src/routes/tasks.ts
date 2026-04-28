@@ -1,9 +1,44 @@
 import { Router } from "express";
+import { z } from "zod";
 import { supabase } from "../supabase.js";
-import { taskCreate, taskUpdate, tagAttach } from "../schemas.js";
+import { taskCreate, taskUpdate, tagAttach, statusEnum } from "../schemas.js";
 import { type EventInput, logEvent, logEvents } from "../events.js";
 
 export const tasksRouter = Router();
+
+// Today-PT midnight (the most-recent one, in the past) as a UTC ISO string.
+// Used by the lazy cleanup in GET /tasks/today to evict tasks completed before today.
+function todayPtMidnightUtcIso(): string {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  const y = get("year");
+  const m = get("month");
+  const d = get("day");
+  const hh = get("hour") === "24" ? "00" : get("hour");
+  const mm = get("minute");
+  const ss = get("second");
+  const nowMs = Date.UTC(
+    Number(y),
+    Number(m) - 1,
+    Number(d),
+    Number(hh),
+    Number(mm),
+    Number(ss)
+  );
+  const ptOffsetMs = nowMs - Date.now();
+  const midnightPtAsUtc = Date.UTC(Number(y), Number(m) - 1, Number(d), 0, 0, 0);
+  return new Date(midnightPtAsUtc - ptOffsetMs).toISOString();
+}
 
 async function attachTagsMany(taskIds: string[]) {
   if (!taskIds.length) return new Map<string, any[]>();
@@ -55,6 +90,86 @@ tasksRouter.get("/", async (_req, res) => {
     assignee: t.assignee_id ? assigneeMap.get(t.assignee_id) ?? null : null,
   }));
   res.json(enriched);
+});
+
+tasksRouter.get("/today", async (_req, res) => {
+  const cutoff = todayPtMidnightUtcIso();
+  await supabase
+    .from("tasks")
+    .update({ is_today: false })
+    .eq("is_today", true)
+    .eq("status", "done")
+    .lt("completed_at", cutoff);
+
+  const { data: tasks, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("is_today", true);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, name, position");
+  const projInfo = new Map(
+    (projects ?? []).map((p) => [p.id, p] as const)
+  );
+
+  const tagMap = await attachTagsMany((tasks ?? []).map((t) => t.id));
+  const assigneeMap = await fetchAssigneeMap(
+    (tasks ?? []).map((t) => t.assignee_id)
+  );
+
+  const enriched = (tasks ?? []).map((t) => ({
+    ...t,
+    project_name: projInfo.get(t.project_id)?.name ?? null,
+    tags: tagMap.get(t.id) ?? [],
+    assignee: t.assignee_id ? assigneeMap.get(t.assignee_id) ?? null : null,
+  }));
+
+  enriched.sort((a, b) => {
+    const pa = projInfo.get(a.project_id)?.position ?? 0;
+    const pb = projInfo.get(b.project_id)?.position ?? 0;
+    if (pa !== pb) return pa - pb;
+    if (a.today_position !== b.today_position)
+      return a.today_position - b.today_position;
+    return (
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  });
+
+  res.json(enriched);
+});
+
+const todayReorderSchema = z.object({
+  project_id: z.string().uuid(),
+  status: statusEnum,
+  ids: z.array(z.string().uuid()),
+});
+
+tasksRouter.put("/today/reorder", async (req, res) => {
+  const parsed = todayReorderSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { project_id, status, ids } = parsed.data;
+  if (ids.length === 0) return res.status(204).end();
+
+  const results = await Promise.all(
+    ids.map((id, idx) =>
+      supabase
+        .from("tasks")
+        .update({ today_position: idx })
+        .eq("id", id)
+        .eq("project_id", project_id)
+        .eq("status", status)
+        .eq("is_today", true)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error)
+    return res.status(500).json({ error: failed.error.message });
+
+  res.status(204).end();
 });
 
 tasksRouter.get("/:id", async (req, res) => {
@@ -188,6 +303,21 @@ tasksRouter.patch("/:id", async (req, res) => {
   if (parsed.data.status && parsed.data.status !== "done")
     patch.completed_at = null;
 
+  if (parsed.data.is_today === true && before.is_today === false) {
+    const destProjectId = parsed.data.project_id ?? before.project_id;
+    const destStatus = parsed.data.status ?? before.status;
+    const { data: maxRow } = await supabase
+      .from("tasks")
+      .select("today_position")
+      .eq("is_today", true)
+      .eq("project_id", destProjectId)
+      .eq("status", destStatus)
+      .order("today_position", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    patch.today_position = (maxRow?.today_position ?? -1) + 1;
+  }
+
   const { data: after, error } = await supabase
     .from("tasks")
     .update(patch)
@@ -264,6 +394,12 @@ tasksRouter.patch("/:id", async (req, res) => {
         from_value: label(before.assignee_id),
       });
     }
+  }
+  if (before.is_today !== after.is_today) {
+    events.push({
+      task_id: after.id,
+      kind: after.is_today ? "today_flagged" : "today_unflagged",
+    });
   }
   await logEvents(events);
 
