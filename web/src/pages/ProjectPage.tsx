@@ -54,7 +54,10 @@ function Column({
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <section
-      className={`flex min-h-0 flex-col rounded-xl ${COLUMN_BG[status]} p-3`}
+      ref={setNodeRef}
+      className={`flex min-h-0 flex-col rounded-xl ${COLUMN_BG[status]} p-3 transition-shadow ${
+        isOver ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-white" : ""
+      }`}
     >
       <header className="mb-2 flex items-center justify-between px-1">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-700">
@@ -64,12 +67,7 @@ function Column({
           {tasks.length}
         </span>
       </header>
-      <div
-        ref={setNodeRef}
-        className={`flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-lg px-1 transition-colors ${
-          isOver ? "bg-white/50 ring-2 ring-blue-300/60" : ""
-        }`}
-      >
+      <div className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-lg px-1">
         <SortableContext
           id={status}
           items={tasks.map((t) => t.id)}
