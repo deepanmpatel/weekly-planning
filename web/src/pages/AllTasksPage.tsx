@@ -15,13 +15,36 @@ export function AllTasksPage() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [includeSubtasks, setIncludeSubtasks] = useState(false);
 
+  const subtasksByParent = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks) {
+      if (!t.parent_task_id) continue;
+      const arr = map.get(t.parent_task_id) ?? [];
+      arr.push(t);
+      map.set(t.parent_task_id, arr);
+    }
+    return map;
+  }, [tasks]);
+
+  const parentName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of tasks) if (!t.parent_task_id) map.set(t.id, t.name);
+    return map;
+  }, [tasks]);
+
   const filtered = useMemo(() => {
-    return tasks.filter((t) => {
-      if (!includeSubtasks && t.parent_task_id) return false;
-      if (filter !== "all" && t.status !== filter) return false;
-      return true;
-    });
-  }, [tasks, filter, includeSubtasks]);
+    return tasks
+      .filter((t) => {
+        if (!includeSubtasks && t.parent_task_id) return false;
+        if (filter !== "all" && t.status !== filter) return false;
+        return true;
+      })
+      .map((t) =>
+        t.parent_task_id
+          ? t
+          : { ...t, subtasks: subtasksByParent.get(t.id) ?? [] }
+      );
+  }, [tasks, filter, includeSubtasks, subtasksByParent]);
 
   const byProject = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -139,6 +162,12 @@ export function AllTasksPage() {
                     key={t.id}
                     task={t}
                     showProject={false}
+                    isSubtask={!!t.parent_task_id}
+                    parentName={
+                      t.parent_task_id
+                        ? parentName.get(t.parent_task_id)
+                        : undefined
+                    }
                     onOpen={() => setOpenTaskId(t.id)}
                   />
                 ))}
