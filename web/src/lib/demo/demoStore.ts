@@ -227,7 +227,12 @@ const handlers: Handler[] = [
     pattern: /^\/projects\/([^/]+)\/tasks\/reorder$/,
     fn: ([, projectId], body) => {
       const columns = body as Record<Status, string[]>;
-      for (const status of ["todo", "in_progress", "done"] as const) {
+      for (const status of [
+        "todo",
+        "in_progress",
+        "waiting_for_reply",
+        "done",
+      ] as const) {
         const ids = columns[status] ?? [];
         ids.forEach((taskId, position) => {
           const task = tasks.find(

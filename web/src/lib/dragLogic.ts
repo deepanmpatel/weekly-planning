@@ -7,7 +7,7 @@ import { STATUS_ORDER } from "./types";
 export type Grouped = Record<Status, Task[]>;
 
 export function emptyGrouped(): Grouped {
-  return { todo: [], in_progress: [], done: [] };
+  return { todo: [], in_progress: [], waiting_for_reply: [], done: [] };
 }
 
 export function groupByStatus(tasks: Task[]): Grouped {
@@ -17,7 +17,12 @@ export function groupByStatus(tasks: Task[]): Grouped {
 }
 
 export function isStatusId(id: unknown): id is Status {
-  return id === "todo" || id === "in_progress" || id === "done";
+  return (
+    id === "todo" ||
+    id === "in_progress" ||
+    id === "waiting_for_reply" ||
+    id === "done"
+  );
 }
 
 export function findContainer(grouped: Grouped, id: string): Status | null {
@@ -104,6 +109,7 @@ export function toReorderColumns(grouped: Grouped) {
   return {
     todo: grouped.todo.map((t) => t.id),
     in_progress: grouped.in_progress.map((t) => t.id),
+    waiting_for_reply: grouped.waiting_for_reply.map((t) => t.id),
     done: grouped.done.map((t) => t.id),
   };
 }

@@ -38,6 +38,7 @@ import { TaskDrawer } from "../components/TaskDrawer";
 const COLUMN_BG: Record<Status, string> = {
   todo: "bg-ink-100/60",
   in_progress: "bg-amber-50",
+  waiting_for_reply: "bg-sky-50",
   done: "bg-emerald-50",
 };
 
@@ -184,7 +185,7 @@ export function ProjectPage() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-6 md:grid-cols-3">
+          <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-6 md:grid-cols-2 xl:grid-cols-4">
             {STATUS_ORDER.map((s) => (
               <Column
                 key={s}

@@ -145,6 +145,7 @@ projectsRouter.get("/:id/tasks", async (req, res) => {
 const reorderSchema = z.object({
   todo: z.array(z.string().uuid()),
   in_progress: z.array(z.string().uuid()),
+  waiting_for_reply: z.array(z.string().uuid()),
   done: z.array(z.string().uuid()),
 });
 
@@ -177,7 +178,12 @@ projectsRouter.put("/:id/tasks/reorder", async (req, res) => {
   };
   const updates: Update[] = [];
 
-  for (const status of ["todo", "in_progress", "done"] as const) {
+  for (const status of [
+    "todo",
+    "in_progress",
+    "waiting_for_reply",
+    "done",
+  ] as const) {
     columns[status].forEach((id, position) => {
       const before = currentById.get(id);
       if (!before) return;

@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export const statusEnum = z.enum(["todo", "in_progress", "done"]);
+export const statusEnum = z.enum([
+  "todo",
+  "in_progress",
+  "waiting_for_reply",
+  "done",
+]);
 
 export const projectCreate = z.object({
   name: z.string().min(1).max(120),

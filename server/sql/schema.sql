@@ -22,7 +22,7 @@ create table if not exists tasks (
   assignee_id uuid references auth.users(id) on delete set null,
   name text not null,
   description text not null default '',
-  status text not null default 'todo' check (status in ('todo','in_progress','done')),
+  status text not null default 'todo' check (status in ('todo','in_progress','waiting_for_reply','done')),
   due_date date,
   completed_at timestamptz,
   position int not null default 0,
