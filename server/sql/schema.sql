@@ -26,6 +26,8 @@ create table if not exists tasks (
   due_date date,
   completed_at timestamptz,
   position int not null default 0,
+  is_today boolean not null default false,
+  today_position int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -109,6 +111,7 @@ create index if not exists tasks_project_id_idx on tasks(project_id);
 create index if not exists tasks_parent_task_id_idx on tasks(parent_task_id);
 create index if not exists tasks_status_idx on tasks(status);
 create index if not exists tasks_assignee_idx on tasks(assignee_id);
+create index if not exists tasks_is_today_idx on tasks (is_today) where is_today;
 create index if not exists task_events_task_id_idx on task_events(task_id, created_at desc);
 
 create or replace function touch_updated_at() returns trigger as $$

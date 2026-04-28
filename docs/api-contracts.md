@@ -42,11 +42,22 @@ PUT    /projects/:id/tasks/order       → 204
 ```
 GET    /tasks                          → Task[] with project_name, tags, assignee
                                           (sorted by project_id, position, created_at)
+GET    /tasks/today                    → Task[] flagged is_today=true, with project_name, tags, assignee
+                                          (sorted by project.position, today_position, created_at)
+                                          Lazy-cleans done+is_today tasks completed before today's
+                                          America/Los_Angeles midnight before returning.
+PUT    /tasks/today/reorder            → 204
+       body: {project_id, status, ids: string[]}
+       Reassigns today_position 0..N within (project_id, status) for is_today=true rows.
+       Constrained by project_id+status+is_today.
 GET    /tasks/:id                      → Task with subtasks[], comments[], events[], tags, assignee
 POST   /tasks {project_id, parent_task_id?, name, description?, status?, due_date?, assignee_id?}
                                        → 201 Task
-PATCH  /tasks/:id {name?, status?, due_date?, description?, project_id?, parent_task_id?, assignee_id?, position?}
-                                       → 200 Task (auto-sets completed_at on status=done)
+PATCH  /tasks/:id {name?, status?, due_date?, description?, project_id?, parent_task_id?, assignee_id?, position?, is_today?}
+                                       → 200 Task (auto-sets completed_at on status=done;
+                                          on is_today false→true, sets today_position to bottom
+                                          of destination (project_id, status) cell;
+                                          logs today_flagged / today_unflagged on toggle)
 DELETE /tasks/:id                      → 204
 POST   /tasks/:id/tags {tag_id}        → 204
 DELETE /tasks/:id/tags/:tagId          → 204

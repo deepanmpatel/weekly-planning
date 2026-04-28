@@ -14,7 +14,8 @@ projects (id, name, position)
    │ 1:N
    ▼
 tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
-       name, description, status, due_date, completed_at, position)
+       name, description, status, due_date, completed_at, position,
+       is_today, today_position)
    │
    ├─── M:N ── task_tags ── tags (id, name, color)
    ├─── 1:N ── comments (id, task_id↗, body, created_at)
@@ -32,6 +33,12 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 ## Position
 
 `tasks.position` is a per-status integer that drives drag-and-drop priority order. Within a status column, tasks are sorted ASC by `position`, with `created_at` ASC as a tiebreaker. The All Tasks page also honors this — see [adr/0003-position-based-priority.md](adr/0003-position-based-priority.md).
+
+## Today flag
+
+`tasks.is_today` (bool) flags a task to appear on the Today page. `tasks.today_position` (int) is an independent per-(project, status) order for the Today swim-lane board, decoupled from `position` so that flagging a task does not perturb its order on the project page. See [adr/0005-today-flag-decoupled-position.md](adr/0005-today-flag-decoupled-position.md).
+
+`GET /tasks/today` performs a lazy cleanup at request time: tasks with `is_today=true`, `status='done'`, and `completed_at` older than the most recent America/Los_Angeles midnight are flipped back to `is_today=false`. This is the only place in the codebase doing TZ-anchored cutoff math (helper `todayPtMidnightUtcIso()` in [server/src/routes/tasks.ts](../server/src/routes/tasks.ts); mirrored in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts)).
 
 ## Profiles trigger
 
@@ -58,6 +65,7 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 | `comment_added` | comment posted (to_value = first 140 chars) |
 | `subtask_added` | new task with parent_task_id (logged on the parent) |
 | `assigned` / `unassigned` | assignee_id changed |
+| `today_flagged` / `today_unflagged` | is_today flipped via `PATCH /tasks/:id` |
 
 When adding a new `EventKind`:
 
@@ -68,6 +76,7 @@ When adding a new `EventKind`:
 ## Indexes (current)
 
 - `tasks(project_id)`, `tasks(parent_task_id)`, `tasks(status)`, `tasks(assignee_id)`
+- `tasks(is_today) where is_today` (partial — only flagged rows)
 - `task_events(task_id, created_at desc)`
 - `allowed_emails(lower(email))`
 - All primary keys + unique constraints (implicit indexes).

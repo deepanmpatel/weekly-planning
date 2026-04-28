@@ -9,13 +9,14 @@
 | `0002_add_auth.sql` | profiles + handle_new_user trigger + tasks.assignee_id |
 | `0003_admin_allowlist.sql` | allowed_emails + profiles.is_admin |
 | `0004_add_waiting_for_reply_status.sql` | extends tasks.status check to allow 'waiting_for_reply' |
+| `0006_add_tasks_is_today.sql` | tasks.is_today + tasks.today_position + partial index `tasks_is_today_idx` |
 
-Numbering is monotonic — each new change gets the next integer. Don't renumber existing files.
+Numbering is monotonic — each new change gets the next integer. Don't renumber existing files. (0005 was intentionally skipped — see commit history.)
 
 ## Tables (current)
 
 - `projects(id, name, position, created_at)`
-- `tasks(id, project_id↗, parent_task_id↗?, assignee_id↗?, name, description, status, due_date, completed_at, position, created_at, updated_at)`
+- `tasks(id, project_id↗, parent_task_id↗?, assignee_id↗?, name, description, status, due_date, completed_at, position, is_today, today_position, created_at, updated_at)`
 - `tags(id, name uniq, color)`
 - `task_tags(task_id↗, tag_id↗)` — composite PK
 - `comments(id, task_id↗, body, created_at)`
