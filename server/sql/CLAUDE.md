@@ -8,6 +8,7 @@
 | `0001_add_task_events.sql` | task_events table |
 | `0002_add_auth.sql` | profiles + handle_new_user trigger + tasks.assignee_id |
 | `0003_admin_allowlist.sql` | allowed_emails + profiles.is_admin |
+| `0004_add_waiting_for_reply_status.sql` | extends tasks.status check to allow 'waiting_for_reply' |
 
 Numbering is monotonic — each new change gets the next integer. Don't renumber existing files.
 

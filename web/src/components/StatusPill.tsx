@@ -5,6 +5,7 @@ import { STATUS_LABEL, STATUS_ORDER } from "../lib/types";
 const STYLE: Record<Status, string> = {
   todo: "bg-ink-100 text-ink-700 ring-ink-200",
   in_progress: "bg-amber-50 text-amber-800 ring-amber-200",
+  waiting_for_reply: "bg-sky-50 text-sky-800 ring-sky-200",
   done: "bg-emerald-50 text-emerald-800 ring-emerald-200",
 };
 

@@ -1,12 +1,18 @@
-export type Status = "todo" | "in_progress" | "done";
+export type Status = "todo" | "in_progress" | "waiting_for_reply" | "done";
 
 export const STATUS_LABEL: Record<Status, string> = {
   todo: "To-Do",
   in_progress: "In Progress",
+  waiting_for_reply: "Waiting for Reply",
   done: "Done",
 };
 
-export const STATUS_ORDER: Status[] = ["todo", "in_progress", "done"];
+export const STATUS_ORDER: Status[] = [
+  "todo",
+  "in_progress",
+  "waiting_for_reply",
+  "done",
+];
 
 export interface Project {
   id: string;

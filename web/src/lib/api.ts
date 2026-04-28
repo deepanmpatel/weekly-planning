@@ -124,6 +124,7 @@ export function useProjectTasks(id: string | undefined) {
 export interface ReorderColumns {
   todo: string[];
   in_progress: string[];
+  waiting_for_reply: string[];
   done: string[];
 }
 

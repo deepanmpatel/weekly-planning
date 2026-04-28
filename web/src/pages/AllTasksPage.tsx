@@ -60,7 +60,8 @@ export function AllTasksPage() {
     const statusRank: Record<Task["status"], number> = {
       todo: 0,
       in_progress: 1,
-      done: 2,
+      waiting_for_reply: 2,
+      done: 3,
     };
     for (const list of map.values()) {
       list.sort((a, b) => {
@@ -83,7 +84,10 @@ export function AllTasksPage() {
       acc[t.status] += 1;
       return acc;
     },
-    { all: 0, todo: 0, in_progress: 0, done: 0 } as Record<Filter, number>
+    { all: 0, todo: 0, in_progress: 0, waiting_for_reply: 0, done: 0 } as Record<
+      Filter,
+      number
+    >
   );
 
   return (

@@ -26,9 +26,13 @@ type Row = {
 const UMBRELLA = "Weekly Planning";
 const FALLBACK_PROJECT = "Other";
 
-const STATUS_MAP: Record<string, "todo" | "in_progress" | "done"> = {
+const STATUS_MAP: Record<
+  string,
+  "todo" | "in_progress" | "waiting_for_reply" | "done"
+> = {
   "To-Do": "todo",
   "In-Progress": "in_progress",
+  "Waiting for Reply": "waiting_for_reply",
   Done: "done",
 };
 

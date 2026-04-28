@@ -27,7 +27,7 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 
 ## Status
 
-`tasks.status` ∈ `('todo','in_progress','done')`. CHECK constraint enforces. Setting status to `done` populates `completed_at`; setting to anything else clears it (handled in `PATCH /tasks/:id`).
+`tasks.status` ∈ `('todo','in_progress','waiting_for_reply','done')`. CHECK constraint enforces. Setting status to `done` populates `completed_at`; setting to anything else clears it (handled in `PATCH /tasks/:id`). Display order on the kanban board: To-Do → In Progress → Waiting for Reply → Done.
 
 ## Position
 
