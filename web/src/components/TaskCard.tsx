@@ -1,6 +1,8 @@
 import clsx from "clsx";
+import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Task } from "../lib/types";
-import { StatusSelect } from "./StatusPill";
+import { StatusPill, StatusSelect } from "./StatusPill";
 import { TagChip } from "./TagChip";
 import { useUpdateTask } from "../lib/api";
 import { Avatar } from "./Avatar";
@@ -19,11 +21,98 @@ function fmtDue(iso: string | null): { text: string; overdue: boolean } | null {
   return { text, overdue };
 }
 
-function subtaskBadge(task: Task): string | null {
-  const subs = task.subtasks;
-  if (!subs || subs.length === 0) return null;
-  const done = subs.filter((s) => s.status === "done").length;
-  return `${done}/${subs.length} done`;
+function SubtaskIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M6 4v12a3 3 0 0 0 3 3h9" />
+      <path d="M14 15l4 4-4 4" />
+    </svg>
+  );
+}
+
+function SubtaskBadge({ subtasks }: { subtasks: Task[] }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+
+  const total = subtasks.length;
+  const done = subtasks.filter((s) => s.status === "done").length;
+
+  useLayoutEffect(() => {
+    if (!open || !anchorRef.current) return;
+    const r = anchorRef.current.getBoundingClientRect();
+    setPos({ top: r.top - 6, left: r.left + r.width / 2 });
+  }, [open]);
+
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        ref={anchorRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        aria-label={`${done} of ${total} subtasks done`}
+        className="inline-flex items-center gap-0.5 rounded bg-indigo-50 px-1 py-0.5 text-[10px] font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200 hover:bg-indigo-100"
+      >
+        <SubtaskIcon className="h-3 w-3" />
+        <span className="tabular-nums">
+          {done}/{total}
+        </span>
+      </button>
+      {open && pos &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{ top: pos.top, left: pos.left }}
+            className="pointer-events-none fixed z-50 w-64 -translate-x-1/2 -translate-y-full rounded-lg border border-ink-200 bg-white p-2 shadow-lg"
+          >
+            <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+              Subtasks · {done}/{total} done
+            </div>
+            <ul className="max-h-64 space-y-0.5 overflow-y-auto">
+              {subtasks.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between gap-2 rounded px-1 py-1"
+                >
+                  <span
+                    className={clsx(
+                      "min-w-0 flex-1 truncate text-xs",
+                      s.status === "done"
+                        ? "text-ink-500 line-through"
+                        : "text-ink-900"
+                    )}
+                    title={s.name}
+                  >
+                    {s.name}
+                  </span>
+                  <StatusPill status={s.status} />
+                </li>
+              ))}
+            </ul>
+            <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 border-b border-r border-ink-200 bg-white" />
+          </div>,
+          document.body
+        )}
+    </span>
+  );
 }
 
 export function TaskCard({
@@ -31,15 +120,19 @@ export function TaskCard({
   onOpen,
   compact,
   showProject,
+  isSubtask,
+  parentName,
 }: {
   task: Task;
   onOpen?: (task: Task) => void;
   compact?: boolean;
   showProject?: boolean;
+  isSubtask?: boolean;
+  parentName?: string;
 }) {
   const update = useUpdateTask();
   const due = fmtDue(task.due_date);
-  const subBadge = subtaskBadge(task);
+  const subtasks = task.subtasks ?? [];
 
   return (
     <div
@@ -50,11 +143,22 @@ export function TaskCard({
         if (e.key === "Enter") onOpen?.(task);
       }}
       className={clsx(
-        "group cursor-pointer rounded-lg border border-ink-200 bg-white shadow-card transition hover:border-ink-300 hover:shadow-hover",
+        "group cursor-pointer rounded-lg border shadow-card transition hover:shadow-hover",
         compact ? "p-2" : "p-3",
+        isSubtask
+          ? "border-indigo-200 border-l-[3px] border-l-indigo-400 bg-indigo-50/40 hover:border-indigo-300 hover:border-l-indigo-500"
+          : "border-ink-200 bg-white hover:border-ink-300",
         task.status === "done" && "opacity-75"
       )}
     >
+      {isSubtask && parentName && (
+        <div className="mb-1 flex items-center gap-1 text-[10px] text-indigo-700/80">
+          <span aria-hidden="true">↳</span>
+          <span className="truncate" title={`Subtask of ${parentName}`}>
+            {parentName}
+          </span>
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div
@@ -71,7 +175,7 @@ export function TaskCard({
               {task.description}
             </p>
           )}
-          {(task.tags?.length || subBadge || due || showProject) && (
+          {(task.tags?.length || subtasks.length > 0 || due || showProject) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {showProject && task.project_name && (
                 <span className="inline-flex items-center gap-1 rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-medium text-ink-700">
@@ -90,11 +194,7 @@ export function TaskCard({
                   📅 {due.text}
                 </span>
               )}
-              {subBadge && (
-                <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200">
-                  ⋯ {subBadge}
-                </span>
-              )}
+              {subtasks.length > 0 && <SubtaskBadge subtasks={subtasks} />}
               {task.tags?.map((t) => (
                 <TagChip key={t.id} tag={t} compact />
               ))}

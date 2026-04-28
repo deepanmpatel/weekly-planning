@@ -353,16 +353,30 @@ function DrawerContent({
                 Subtasks {task.subtasks?.length ? `(${task.subtasks.length})` : ""}
               </div>
             </div>
-            <div className="space-y-1.5">
-              {task.subtasks?.map((s) => (
-                <TaskCard
-                  key={s.id}
-                  task={s}
-                  compact
-                  onOpen={() => onOpenChild?.(s)}
+            {task.subtasks && task.subtasks.length > 0 && (
+              <div className="relative pl-5">
+                <div
+                  className="pointer-events-none absolute left-1 top-2 bottom-2 w-px bg-indigo-200"
+                  aria-hidden="true"
                 />
-              ))}
-            </div>
+                <div className="space-y-1.5">
+                  {task.subtasks.map((s) => (
+                    <div key={s.id} className="relative">
+                      <div
+                        className="pointer-events-none absolute -left-4 top-1/2 h-px w-4 bg-indigo-200"
+                        aria-hidden="true"
+                      />
+                      <TaskCard
+                        task={s}
+                        compact
+                        isSubtask
+                        onOpen={() => onOpenChild?.(s)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-2">
               <NewTaskInline
                 projectId={task.project_id}
