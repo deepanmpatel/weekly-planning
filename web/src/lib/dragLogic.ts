@@ -1,7 +1,7 @@
 // Pure helpers for the project-page drag-and-drop kanban.
 // No React, no dnd-kit imports — easy to unit-test in isolation.
 
-import type { Status, Task } from "./types";
+import type { Project, Status, Task } from "./types";
 import { STATUS_ORDER } from "./types";
 
 export type Grouped = Record<Status, Task[]>;
@@ -138,4 +138,115 @@ export function applyGroupedToCache(
     if (!seen.has(o.id)) next.push(o);
   }
   return next;
+}
+
+interface ReorderColumns {
+  todo: string[];
+  in_progress: string[];
+  waiting_for_reply: string[];
+  done: string[];
+}
+
+/**
+ * Optimistic cache update for `PUT /projects/:id/tasks/reorder`.
+ * Re-keys `applyGroupedToCache` off ID arrays so the mutation hook can
+ * compute the new state without needing the live `Grouped` shape.
+ */
+export function applyReorderColumnsToCache(
+  cached: Task[] | undefined,
+  columns: ReorderColumns
+): Task[] | undefined {
+  if (!cached) return cached;
+  const update = new Map<string, { status: Status; position: number }>();
+  for (const s of STATUS_ORDER) {
+    columns[s].forEach((id, i) => update.set(id, { status: s, position: i }));
+  }
+  return cached.map((t) => {
+    const u = update.get(t.id);
+    return u ? { ...t, status: u.status, position: u.position } : t;
+  });
+}
+
+/**
+ * Optimistic cache update for `PUT /tasks/today/reorder` (single cell).
+ * Sets `today_position` for tasks matching `(project_id, status)` whose id
+ * appears in `ids`. Tasks outside that cell are untouched.
+ */
+export function applyTodayCellReorderToCache(
+  cached: Task[] | undefined,
+  projectId: string,
+  status: Status,
+  ids: string[]
+): Task[] | undefined {
+  if (!cached) return cached;
+  const pos = new Map<string, number>();
+  ids.forEach((id, i) => pos.set(id, i));
+  return cached.map((t) => {
+    if (t.project_id === projectId && t.status === status && pos.has(t.id)) {
+      return { ...t, today_position: pos.get(t.id)! };
+    }
+    return t;
+  });
+}
+
+/**
+ * Optimistic cache update for a cross-cell move on TodayPage: the moving
+ * task gets the new status + today_position; other tasks in the destination
+ * cell get their today_position recomputed. Source-cell tasks keep their
+ * existing today_position (the next refetch reconciles any tightening).
+ */
+export function applyTodayCrossCellMoveToCache(
+  cached: Task[] | undefined,
+  taskId: string,
+  destProjectId: string,
+  destStatus: Status,
+  destIds: string[]
+): Task[] | undefined {
+  if (!cached) return cached;
+  const pos = new Map<string, number>();
+  destIds.forEach((id, i) => pos.set(id, i));
+  return cached.map((t) => {
+    if (t.id === taskId) {
+      return {
+        ...t,
+        project_id: destProjectId,
+        status: destStatus,
+        today_position: pos.get(taskId) ?? 0,
+      };
+    }
+    if (
+      t.project_id === destProjectId &&
+      t.status === destStatus &&
+      pos.has(t.id)
+    ) {
+      return { ...t, today_position: pos.get(t.id)! };
+    }
+    return t;
+  });
+}
+
+/**
+ * Optimistic cache update for `PUT /projects/order`. Reorders `cached` to
+ * match `orderedIds`, with any unlisted projects appended in their original
+ * order. Each project's `position` is set to its new index.
+ */
+export function applyProjectsReorderToCache(
+  cached: Project[] | undefined,
+  orderedIds: string[]
+): Project[] | undefined {
+  if (!cached) return cached;
+  const byId = new Map(cached.map((p) => [p.id, p]));
+  const seen = new Set<string>();
+  const out: Project[] = [];
+  for (const id of orderedIds) {
+    const p = byId.get(id);
+    if (p) {
+      out.push(p);
+      seen.add(id);
+    }
+  }
+  for (const p of cached) {
+    if (!seen.has(p.id)) out.push(p);
+  }
+  return out.map((p, i) => ({ ...p, position: i }));
 }

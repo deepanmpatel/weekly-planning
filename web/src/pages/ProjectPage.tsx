@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -27,8 +28,11 @@ import {
   applyDrop,
   applyGroupedToCache,
   emptyGrouped,
+  findContainer,
   groupByStatus,
+  isStatusId,
   toReorderColumns,
+  type Grouped,
 } from "../lib/dragLogic";
 import { TaskCard } from "../components/TaskCard";
 import { SortableTaskCard } from "../components/SortableTaskCard";
@@ -99,6 +103,9 @@ export function ProjectPage() {
   const qc = useQueryClient();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Snapshot the pre-drag cache so dragCancel can restore it (dragOver may
+  // have already mutated it).
+  const dragStartCacheRef = useRef<Task[] | undefined>(undefined);
 
   // Derived (NOT state). When `data` is stable, this is memoized stable too.
   // When the cache updates (after a drop), `data` flips to the new reference
@@ -124,26 +131,132 @@ export function ProjectPage() {
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
+    if (id) {
+      dragStartCacheRef.current = qc.getQueryData<Task[]>([
+        "projects",
+        id,
+        "tasks",
+      ]);
+    }
+  }
+
+  // Cross-column drag preview: as soon as the cursor enters a different
+  // column, move the active task into that column in the cache. The
+  // destination's verticalListSortingStrategy then opens a gap at the
+  // hover position, and the drop animation lands at the right place
+  // (no snap-back). Same-column hovers are handled by useSortable itself.
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over || !id) return;
+
+    const activeIdStr = String(active.id);
+    const overIdStr = String(over.id);
+    if (activeIdStr === overIdStr) return;
+
+    const cached = qc.getQueryData<Task[]>(["projects", id, "tasks"]);
+    if (!cached) return;
+    const currentGrouped = groupByStatus(cached);
+
+    const activeContainer = findContainer(currentGrouped, activeIdStr);
+    const overContainer = isStatusId(overIdStr)
+      ? overIdStr
+      : findContainer(currentGrouped, overIdStr);
+    if (!activeContainer || !overContainer) return;
+    if (activeContainer === overContainer) return;
+
+    const activeItems = currentGrouped[activeContainer];
+    const overItems = currentGrouped[overContainer];
+    const activeItem = activeItems.find((t) => t.id === activeIdStr);
+    if (!activeItem) return;
+
+    // Stable insert index: when `over` is a task, decide before/after based
+    // on the cursor relative to that task's vertical center. Without this,
+    // dnd-kit's collision detection alternates `over` between the column
+    // and its last task as the cursor sits in the empty space below the
+    // list — which would make the last item's transform flip on/off and
+    // appear to "jump."
+    let insertIdx: number;
+    if (isStatusId(overIdStr)) {
+      insertIdx = overItems.length;
+    } else {
+      const overIdx = overItems.findIndex((t) => t.id === overIdStr);
+      if (overIdx === -1) {
+        insertIdx = overItems.length;
+      } else {
+        const activeTop = active.rect.current.translated?.top;
+        const overMid = over.rect.top + over.rect.height / 2;
+        const insertAfter =
+          activeTop !== undefined && activeTop > overMid;
+        insertIdx = overIdx + (insertAfter ? 1 : 0);
+      }
+    }
+
+    const movedTask: Task = { ...activeItem, status: overContainer };
+    const next: Grouped = {
+      ...currentGrouped,
+      [activeContainer]: activeItems.filter((t) => t.id !== activeIdStr),
+      [overContainer]: [
+        ...overItems.slice(0, insertIdx),
+        movedTask,
+        ...overItems.slice(insertIdx),
+      ],
+    };
+
+    qc.setQueryData<Task[]>(
+      ["projects", id, "tasks"],
+      applyGroupedToCache(cached, next)
+    );
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveId(null);
     const { active, over } = event;
-    if (!over || !id) return;
+    if (!over || !id) {
+      handleDragCancel();
+      return;
+    }
 
-    const next = applyDrop(grouped, String(active.id), String(over.id));
-    if (!next) return;
+    // Read the latest cache (may already reflect cross-column moves from
+    // handleDragOver) and apply any final position change.
+    const cached = qc.getQueryData<Task[]>(["projects", id, "tasks"]);
+    const startSnapshot = dragStartCacheRef.current;
+    dragStartCacheRef.current = undefined;
+    if (!cached) return;
+    const currentGrouped = groupByStatus(cached);
 
-    // Single source of truth: update the query cache. The useMemo above
-    // recomputes `grouped` from the new cache value on the next render.
-    qc.setQueryData<Task[]>(["projects", id, "tasks"], (old) =>
-      applyGroupedToCache(old, next)
+    const sameContainerMove = applyDrop(
+      currentGrouped,
+      String(active.id),
+      String(over.id)
     );
-    reorder.mutate({ projectId: id, columns: toReorderColumns(next) });
+    const final = sameContainerMove ?? currentGrouped;
+
+    if (sameContainerMove) {
+      qc.setQueryData<Task[]>(
+        ["projects", id, "tasks"],
+        applyGroupedToCache(cached, sameContainerMove)
+      );
+    }
+
+    // Skip the network call when nothing changed end-to-end (drag-over
+    // never moved containers and drop didn't trigger a same-container
+    // reorder).
+    if (!sameContainerMove && startSnapshot === cached) {
+      return;
+    }
+
+    reorder.mutate({ projectId: id, columns: toReorderColumns(final) });
   }
 
   function handleDragCancel() {
     setActiveId(null);
+    if (id && dragStartCacheRef.current) {
+      qc.setQueryData<Task[]>(
+        ["projects", id, "tasks"],
+        dragStartCacheRef.current
+      );
+    }
+    dragStartCacheRef.current = undefined;
   }
 
   if (!id) return null;
@@ -180,6 +293,7 @@ export function ProjectPage() {
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >

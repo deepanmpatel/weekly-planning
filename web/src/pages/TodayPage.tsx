@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   DragOverlay,
@@ -8,6 +9,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -25,6 +27,11 @@ import {
 } from "../lib/api";
 import type { Project, Status, Task } from "../lib/types";
 import { STATUS_LABEL, STATUS_ORDER } from "../lib/types";
+import {
+  applyProjectsReorderToCache,
+  applyTodayCellReorderToCache,
+  applyTodayCrossCellMoveToCache,
+} from "../lib/dragLogic";
 import { TaskCard } from "../components/TaskCard";
 import { SortableTaskCard } from "../components/SortableTaskCard";
 import { TaskDrawer } from "../components/TaskDrawer";
@@ -195,9 +202,17 @@ export default function TodayPage() {
   const reorderProjects = useReorderProjects();
   const reorderTodayCell = useReorderTodayCell();
   const updateTask = useUpdateTask();
+  const qc = useQueryClient();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<"project" | "task" | null>(null);
+  // Captured on dragStart so cancellation/error can restore the pre-drag cache,
+  // and so dragEnd can detect cross-cell status changes.
+  const dragStartRef = useRef<{
+    cache: Task[] | undefined;
+    activeStatus: Status;
+    activeProjectId: string;
+  } | null>(null);
 
   const grouped = useMemo(() => {
     const out: Record<string, CellMap> = {};
@@ -245,12 +260,23 @@ export default function TodayPage() {
   const activeTask =
     activeKind === "task" && activeId ? tasksById.get(activeId) ?? null : null;
 
-  function findTaskCell(
-    taskId: string
+  function resolveDestCell(
+    cached: Task[],
+    over: { id: string | number; data: { current?: unknown } }
   ): { project_id: string; status: Status } | null {
-    const t = tasksById.get(taskId);
-    if (!t) return null;
-    return { project_id: t.project_id, status: t.status };
+    const overIdStr = String(over.id);
+    const overData = over.data.current as
+      | { kind?: string; project_id?: string; status?: Status }
+      | undefined;
+    if (overData?.kind === "cell" && overData.project_id && overData.status) {
+      return { project_id: overData.project_id, status: overData.status };
+    }
+    const overTask = cached.find((t) => t.id === overIdStr);
+    if (overTask) {
+      return { project_id: overTask.project_id, status: overTask.status };
+    }
+    const parsed = parseCellId(overIdStr);
+    return parsed;
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -258,22 +284,116 @@ export default function TodayPage() {
     setActiveId(id);
     const kind = event.active.data.current?.kind;
     setActiveKind(kind === "project" ? "project" : "task");
+    if (kind !== "project") {
+      const t = tasksById.get(id);
+      const cache = qc.getQueryData<Task[]>(["tasks", "today"]);
+      dragStartRef.current = t
+        ? {
+            cache,
+            activeStatus: t.status,
+            activeProjectId: t.project_id,
+          }
+        : null;
+    } else {
+      dragStartRef.current = null;
+    }
+  }
+
+  // Cross-cell drag preview within the same project: when the cursor enters
+  // a different status cell, move the active task into that cell in the
+  // cache. The destination's verticalListSortingStrategy then opens a gap
+  // at the hover position. Same-cell moves are handled by useSortable.
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.data.current?.kind === "project") return;
+
+    const activeIdStr = String(active.id);
+    const overIdStr = String(over.id);
+    if (activeIdStr === overIdStr) return;
+
+    const cached = qc.getQueryData<Task[]>(["tasks", "today"]);
+    if (!cached) return;
+    const activeTask = cached.find((t) => t.id === activeIdStr);
+    if (!activeTask) return;
+
+    const dest = resolveDestCell(cached, over);
+    if (!dest) return;
+    if (dest.project_id !== activeTask.project_id) return; // cross-project blocked
+    if (dest.status === activeTask.status) return; // same cell, useSortable handles
+
+    const destCellTasks = cached
+      .filter(
+        (t) =>
+          t.project_id === dest.project_id &&
+          t.status === dest.status &&
+          t.id !== activeIdStr
+      )
+      .sort((a, b) => a.today_position - b.today_position);
+
+    const overData = over.data.current as { kind?: string } | undefined;
+    // Stable insert index: when `over` is a task, decide before/after based
+    // on the cursor relative to that task's vertical center. Without this,
+    // dnd-kit's collision detection alternates `over` between the cell and
+    // its last task as the cursor sits in the empty space below the list,
+    // which would make the last item's transform flip on/off and appear
+    // to "jump."
+    let insertIdx: number;
+    if (overData?.kind === "cell") {
+      insertIdx = destCellTasks.length;
+    } else {
+      const overIdx = destCellTasks.findIndex((t) => t.id === overIdStr);
+      if (overIdx === -1) {
+        insertIdx = destCellTasks.length;
+      } else {
+        const activeTop = active.rect.current.translated?.top;
+        const overMid = over.rect.top + over.rect.height / 2;
+        const insertAfter =
+          activeTop !== undefined && activeTop > overMid;
+        insertIdx = overIdx + (insertAfter ? 1 : 0);
+      }
+    }
+
+    const newDestIds = [
+      ...destCellTasks.slice(0, insertIdx).map((t) => t.id),
+      activeIdStr,
+      ...destCellTasks.slice(insertIdx).map((t) => t.id),
+    ];
+
+    qc.setQueryData<Task[]>(["tasks", "today"], (old) =>
+      applyTodayCrossCellMoveToCache(
+        old,
+        activeIdStr,
+        dest.project_id,
+        dest.status,
+        newDestIds
+      )
+    );
   }
 
   function handleDragCancel() {
     setActiveId(null);
     setActiveKind(null);
+    // Restore pre-drag cache if dragOver mutated it.
+    if (dragStartRef.current?.cache) {
+      qc.setQueryData<Task[]>(["tasks", "today"], dragStartRef.current.cache);
+    }
+    dragStartRef.current = null;
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveId(null);
     setActiveKind(null);
-    if (!over) return;
+    if (!over) {
+      handleDragCancel();
+      return;
+    }
 
     const activeData = active.data.current as { kind?: string } | undefined;
 
     if (activeData?.kind === "project") {
+      dragStartRef.current = null;
       if (active.id === over.id) return;
       const oldIdx = projectsWithTasks.findIndex((p) => p.id === active.id);
       const newIdx = projectsWithTasks.findIndex((p) => p.id === over.id);
@@ -283,86 +403,100 @@ export default function TodayPage() {
       const remaining = projects
         .filter((p) => !reorderedIds.includes(p.id))
         .map((p) => p.id);
-      reorderProjects.mutate([...reorderedIds, ...remaining]);
+      const orderedIds = [...reorderedIds, ...remaining];
+      // Sync optimistic write before mutate so the drop animation lands
+      // at the new position instead of snapping back.
+      qc.setQueryData<Project[]>(["projects"], (old) =>
+        applyProjectsReorderToCache(old, orderedIds)
+      );
+      reorderProjects.mutate(orderedIds);
       return;
     }
 
-    const activeCell = findTaskCell(String(active.id));
-    if (!activeCell) return;
+    const start = dragStartRef.current;
+    dragStartRef.current = null;
+    if (!start) return;
 
-    const overData = over.data.current as
-      | { kind?: string; project_id?: string; status?: Status }
-      | undefined;
+    const cached = qc.getQueryData<Task[]>(["tasks", "today"]);
+    if (!cached) return;
+    const activeIdStr = String(active.id);
+    const activeTask = cached.find((t) => t.id === activeIdStr);
+    if (!activeTask) return;
 
-    let destProjectId: string | undefined;
-    let destStatus: Status | undefined;
-    if (overData?.kind === "cell") {
-      destProjectId = overData.project_id;
-      destStatus = overData.status;
-    } else if (overData?.kind === "task") {
-      const destCell = findTaskCell(String(over.id));
-      if (destCell) {
-        destProjectId = destCell.project_id;
-        destStatus = destCell.status;
-      }
-    } else {
-      const parsed = parseCellId(String(over.id));
-      if (parsed) {
-        destProjectId = parsed.project_id;
-        destStatus = parsed.status;
-      } else {
-        const destCell = findTaskCell(String(over.id));
-        if (destCell) {
-          destProjectId = destCell.project_id;
-          destStatus = destCell.status;
-        }
-      }
-    }
+    // After possible dragOver moves, active is in its current cell. Compute
+    // final ids for that cell, applying same-cell reorder if dropped on a
+    // task within it.
+    const cellTasks = cached
+      .filter(
+        (t) =>
+          t.project_id === activeTask.project_id &&
+          t.status === activeTask.status
+      )
+      .sort((a, b) => a.today_position - b.today_position);
 
-    if (!destProjectId || !destStatus) return;
-
-    if (activeCell.project_id !== destProjectId) return;
-
-    const sourceList = grouped[activeCell.project_id]?.[activeCell.status] ?? [];
-    const destList = grouped[destProjectId]?.[destStatus] ?? [];
-
+    const overIdStr = String(over.id);
+    const overTask = cached.find((t) => t.id === overIdStr);
+    let finalCellTasks = cellTasks;
     if (
-      activeCell.project_id === destProjectId &&
-      activeCell.status === destStatus
+      overTask &&
+      overTask.id !== activeIdStr &&
+      overTask.project_id === activeTask.project_id &&
+      overTask.status === activeTask.status
     ) {
-      const oldIdx = sourceList.findIndex((t) => t.id === active.id);
-      const overTaskIdx = sourceList.findIndex((t) => t.id === over.id);
-      const newIdx = overTaskIdx === -1 ? sourceList.length - 1 : overTaskIdx;
-      if (oldIdx === -1 || oldIdx === newIdx) return;
-      const reordered = arrayMove(sourceList, oldIdx, newIdx);
-      reorderTodayCell.mutate({
-        project_id: destProjectId,
-        status: destStatus,
-        ids: reordered.map((t) => t.id),
-      });
-      return;
+      const oldIdx = cellTasks.findIndex((t) => t.id === activeIdStr);
+      const newIdx = cellTasks.findIndex((t) => t.id === overTask.id);
+      if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+        finalCellTasks = arrayMove(cellTasks, oldIdx, newIdx);
+      }
     }
+    const finalCellIds = finalCellTasks.map((t) => t.id);
 
-    const moving = sourceList.find((t) => t.id === active.id);
-    if (!moving) return;
+    // Sync optimistic write (positions in the final cell).
+    qc.setQueryData<Task[]>(["tasks", "today"], (old) =>
+      applyTodayCellReorderToCache(
+        old,
+        activeTask.project_id,
+        activeTask.status,
+        finalCellIds
+      )
+    );
 
-    const overTaskIdx = destList.findIndex((t) => t.id === over.id);
-    const insertIdx = overTaskIdx === -1 ? destList.length : overTaskIdx;
-    const newDest = [
-      ...destList.slice(0, insertIdx),
-      moving,
-      ...destList.slice(insertIdx),
-    ];
-
-    updateTask.mutate({
-      id: moving.id,
-      patch: { status: destStatus },
-    });
-    reorderTodayCell.mutate({
-      project_id: destProjectId,
-      status: destStatus,
-      ids: newDest.map((t) => t.id),
-    });
+    const statusChanged = activeTask.status !== start.activeStatus;
+    if (statusChanged) {
+      // Sequence the mutations so the backend reorder sees the updated
+      // status. Both fire in the background; UI is already up to date.
+      updateTask.mutate(
+        { id: activeIdStr, patch: { status: activeTask.status } },
+        {
+          onSuccess: () => {
+            reorderTodayCell.mutate({
+              project_id: activeTask.project_id,
+              status: activeTask.status,
+              ids: finalCellIds,
+            });
+          },
+        }
+      );
+    } else {
+      // Same-cell only: skip mutation if nothing changed.
+      const startCellTasks = (start.cache ?? [])
+        .filter(
+          (t) =>
+            t.project_id === activeTask.project_id &&
+            t.status === activeTask.status
+        )
+        .sort((a, b) => a.today_position - b.today_position);
+      const startIds = startCellTasks.map((t) => t.id);
+      const orderUnchanged =
+        startIds.length === finalCellIds.length &&
+        startIds.every((id, i) => id === finalCellIds[i]);
+      if (orderUnchanged) return;
+      reorderTodayCell.mutate({
+        project_id: activeTask.project_id,
+        status: activeTask.status,
+        ids: finalCellIds,
+      });
+    }
   }
 
   return (
@@ -397,6 +531,7 @@ export default function TodayPage() {
             sensors={sensors}
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >

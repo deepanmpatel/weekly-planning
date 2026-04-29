@@ -24,10 +24,9 @@ import {
 } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { DEMO_MODE } from "../lib/demoMode";
+import { applyProjectsReorderToCache } from "../lib/dragLogic";
 import type { Project } from "../lib/types";
 import { Avatar } from "./Avatar";
-
-const PROJECTS_KEY = ["projects"] as const;
 
 const COLLAPSE_KEY = "weekly-planning:sidebar-collapsed";
 
@@ -206,11 +205,14 @@ export function Sidebar() {
     const newIdx = projects.findIndex((p) => p.id === over.id);
     if (oldIdx === -1 || newIdx === -1) return;
     const next = arrayMove(projects, oldIdx, newIdx);
+    const orderedIds = next.map((p) => p.id);
 
-    qc.setQueryData<Project[]>(PROJECTS_KEY, () =>
-      next.map((p, i) => ({ ...p, position: i }))
+    // Sync optimistic write before mutate so the drop animation lands
+    // at the new position instead of snapping back.
+    qc.setQueryData<Project[]>(["projects"], (old) =>
+      applyProjectsReorderToCache(old, orderedIds)
     );
-    reorderProjects.mutate(next.map((p) => p.id));
+    reorderProjects.mutate(orderedIds);
   }
 
   const linkClass = (isActive: boolean, justifyCenter = false) =>
