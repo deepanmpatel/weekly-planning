@@ -141,7 +141,7 @@ function DrawerContent({
           <button
             type="button"
             aria-pressed={task.is_today}
-            title={task.is_today ? "Remove from Today" : "Add to Today"}
+            title={task.is_today ? "Remove from Prioritized" : "Add to Prioritized"}
             onClick={() =>
               update.mutate({
                 id: task.id,

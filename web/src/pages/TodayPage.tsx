@@ -372,7 +372,7 @@ export default function TodayPage() {
           <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
             Overview
           </div>
-          <h1 className="text-xl font-semibold text-ink-900">Today</h1>
+          <h1 className="text-xl font-semibold text-ink-900">Prioritized</h1>
         </div>
         <div className="text-xs text-ink-500 tabular-nums">
           {tasks.length} tasks
@@ -382,7 +382,7 @@ export default function TodayPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {error && (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-            <div className="font-semibold">Couldn't load Today</div>
+            <div className="font-semibold">Couldn't load Prioritized</div>
             <div className="mt-1 font-mono text-xs">{error.message}</div>
           </div>
         )}
@@ -390,7 +390,7 @@ export default function TodayPage() {
           <div className="text-sm text-ink-500">Loading…</div>
         ) : projectsWithTasks.length === 0 ? (
           <div className="rounded-lg border border-dashed border-ink-200 p-8 text-center text-sm text-ink-500">
-            No tasks flagged for Today. Tap the star on any task to add it.
+            No tasks marked Prioritized. Tap the star on any task to add it.
           </div>
         ) : (
           <DndContext

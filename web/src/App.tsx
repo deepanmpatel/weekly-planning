@@ -44,7 +44,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<AllTasksPage />} />
           <Route path="/projects/:id" element={<ProjectPage />} />
-          <Route path="/today" element={<TodayPage />} />
+          <Route path="/prioritized" element={<TodayPage />} />
           {me?.is_admin && (
             <Route path="/admin" element={<AdminPage />} />
           )}
