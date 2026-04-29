@@ -288,9 +288,9 @@ export function Sidebar() {
         </NavLink>
 
         <NavLink
-          to="/today"
+          to="/prioritized"
           className={({ isActive }) => linkClass(isActive, true)}
-          title={collapsed ? "Today" : undefined}
+          title={collapsed ? "Prioritized" : undefined}
         >
           {collapsed ? (
             <svg
@@ -307,7 +307,7 @@ export function Sidebar() {
               <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
             </svg>
           ) : (
-            <span>Today</span>
+            <span>Prioritized</span>
           )}
         </NavLink>
 

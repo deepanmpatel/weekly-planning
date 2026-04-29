@@ -22,7 +22,8 @@
       "Bash(grep -E '\\\\.env$')",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(gh pr *)"
     ]
   }
 }
