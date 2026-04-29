@@ -110,7 +110,7 @@ export function useReorderProjects() {
         method: "PUT",
         body: JSON.stringify({ ordered_ids }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.projects }),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.projects }),
   });
 }
 
@@ -143,7 +143,7 @@ export function useReorderProjectTasks() {
         method: "PUT",
         body: JSON.stringify(columns),
       }),
-    onSuccess: (_d, vars) => {
+    onSettled: (_d, _e, vars) => {
       qc.invalidateQueries({ queryKey: qk.projectTasks(vars.projectId) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
       qc.invalidateQueries({ queryKey: qk.projects });
@@ -184,7 +184,7 @@ export function useReorderTodayCell() {
         method: "PUT",
         body: JSON.stringify({ project_id, status, ids }),
       }),
-    onSuccess: () => {
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.todayTasks });
       qc.invalidateQueries({ queryKey: qk.allTasks });
     },
