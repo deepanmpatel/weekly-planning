@@ -175,7 +175,11 @@ export function TaskCard({
               {task.description}
             </p>
           )}
-          {(task.tags?.length || subtasks.length > 0 || due || showProject) && (
+          {(task.tags?.length ||
+            subtasks.length > 0 ||
+            due ||
+            showProject ||
+            task.estimated_time != null) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {showProject && task.project_name && (
                 <span className="inline-flex items-center gap-1 rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-medium text-ink-700">
@@ -192,6 +196,12 @@ export function TaskCard({
                   )}
                 >
                   📅 {due.text}
+                </span>
+              )}
+              {task.estimated_time != null && (
+                <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                  ⏱ {task.estimated_time}
+                  {task.estimated_time_unit === "days" ? "d" : "h"}
                 </span>
               )}
               {subtasks.length > 0 && <SubtaskBadge subtasks={subtasks} />}

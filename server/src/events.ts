@@ -15,7 +15,8 @@ export type EventKind =
   | "assigned"
   | "unassigned"
   | "today_flagged"
-  | "today_unflagged";
+  | "today_unflagged"
+  | "estimated_time_changed";
 
 export interface EventInput {
   task_id: string;

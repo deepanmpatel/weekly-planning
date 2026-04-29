@@ -207,6 +207,8 @@ export interface CreateTaskInput {
   status?: Task["status"];
   due_date?: string | null;
   assignee_id?: string | null;
+  estimated_time?: number | null;
+  estimated_time_unit?: Task["estimated_time_unit"];
 }
 
 export function useCreateTask() {
