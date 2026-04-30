@@ -16,6 +16,8 @@ export const projectUpdate = z.object({
   position: z.number().int().optional(),
 });
 
+export const estimatedTimeUnitEnum = z.enum(["hours", "days"]);
+
 export const taskCreate = z.object({
   project_id: z.string().uuid(),
   parent_task_id: z.string().uuid().nullish(),
@@ -25,6 +27,8 @@ export const taskCreate = z.object({
   due_date: z.string().date().nullish(),
   position: z.number().int().optional(),
   assignee_id: z.string().uuid().nullish(),
+  estimated_time: z.number().nonnegative().nullish(),
+  estimated_time_unit: estimatedTimeUnitEnum.optional(),
 });
 
 export const taskUpdate = z.object({
@@ -37,6 +41,8 @@ export const taskUpdate = z.object({
   position: z.number().int().optional(),
   assignee_id: z.string().uuid().nullish(),
   is_today: z.boolean().optional(),
+  estimated_time: z.number().nonnegative().nullish(),
+  estimated_time_unit: estimatedTimeUnitEnum.optional(),
 });
 
 export const commentCreate = z.object({

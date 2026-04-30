@@ -56,6 +56,16 @@ async function attachTagsMany(taskIds: string[]) {
   return map;
 }
 
+function formatEstimate(
+  value: number | string | null | undefined,
+  unit: string | null | undefined
+): string | null {
+  if (value === null || value === undefined) return null;
+  const num = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(num)) return null;
+  return `${num}${unit === "days" ? "d" : "h"}`;
+}
+
 async function fetchAssigneeMap(assigneeIds: (string | null | undefined)[]) {
   const ids = [...new Set(assigneeIds.filter(Boolean) as string[])];
   if (!ids.length) return new Map<string, any>();
@@ -245,6 +255,8 @@ tasksRouter.post("/", async (req, res) => {
     parent_task_id: parsed.data.parent_task_id ?? null,
     assignee_id: parsed.data.assignee_id ?? null,
     position: parsed.data.position ?? nextPos,
+    estimated_time: parsed.data.estimated_time ?? null,
+    estimated_time_unit: parsed.data.estimated_time_unit ?? "hours",
   };
 
   const { data, error } = await supabase
@@ -399,6 +411,26 @@ tasksRouter.patch("/:id", async (req, res) => {
     events.push({
       task_id: after.id,
       kind: after.is_today ? "today_flagged" : "today_unflagged",
+    });
+  }
+  const beforeEstimate = formatEstimate(
+    before.estimated_time,
+    before.estimated_time_unit
+  );
+  const afterEstimate = formatEstimate(
+    after.estimated_time,
+    after.estimated_time_unit
+  );
+  if (beforeEstimate !== afterEstimate) {
+    events.push({
+      task_id: after.id,
+      kind: "estimated_time_changed",
+      from_value: beforeEstimate,
+      to_value: afterEstimate,
+      meta: {
+        value: after.estimated_time,
+        unit: after.estimated_time_unit,
+      },
     });
   }
   await logEvents(events);

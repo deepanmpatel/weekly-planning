@@ -17,6 +17,7 @@ const KIND_ICON: Record<TaskEvent["kind"], string> = {
   unassigned: "👤",
   today_flagged: "⭐",
   today_unflagged: "☆",
+  estimated_time_changed: "⏱",
 };
 
 function formatDate(iso: string | null): string {
@@ -138,6 +139,15 @@ function renderDescription(e: TaskEvent): React.ReactNode {
       return <>Added to Today</>;
     case "today_unflagged":
       return <>Removed from Today</>;
+    case "estimated_time_changed":
+      if (!e.to_value) return <>Estimate cleared</>;
+      if (!e.from_value) return <>Estimate set to <strong>{e.to_value}</strong></>;
+      return (
+        <>
+          Estimate changed from <strong>{e.from_value}</strong> to{" "}
+          <strong>{e.to_value}</strong>
+        </>
+      );
     default:
       return <>Unknown event</>;
   }

@@ -81,7 +81,8 @@ function logEvent(
   task_id: string,
   kind: TaskEventKind,
   from_value: string | null = null,
-  to_value: string | null = null
+  to_value: string | null = null,
+  meta: Record<string, unknown> = {}
 ) {
   events.unshift({
     id: uid("e"),
@@ -89,9 +90,18 @@ function logEvent(
     kind,
     from_value,
     to_value,
-    meta: {},
+    meta,
     created_at: nowIso(),
   });
+}
+
+function formatEstimate(
+  value: number | null | undefined,
+  unit: string | null | undefined
+): string | null {
+  if (value === null || value === undefined) return null;
+  if (!Number.isFinite(value)) return null;
+  return `${value}${unit === "days" ? "d" : "h"}`;
 }
 
 function tagsForTask(taskId: string): Tag[] {
@@ -413,6 +423,10 @@ const handlers: Handler[] = [
             : (siblings.at(-1)?.position ?? -1) + 1,
         is_today: false,
         today_position: 0,
+        estimated_time:
+          typeof body?.estimated_time === "number" ? body.estimated_time : null,
+        estimated_time_unit:
+          body?.estimated_time_unit === "days" ? "days" : "hours",
         created_at: nowIso(),
         updated_at: nowIso(),
       };
@@ -463,6 +477,13 @@ const handlers: Handler[] = [
           task.today_position = max + 1;
         }
       }
+      if (body?.estimated_time !== undefined) {
+        task.estimated_time =
+          typeof body.estimated_time === "number" ? body.estimated_time : null;
+      }
+      if (body?.estimated_time_unit === "hours" || body?.estimated_time_unit === "days") {
+        task.estimated_time_unit = body.estimated_time_unit;
+      }
       task.updated_at = nowIso();
 
       if (before.name !== task.name)
@@ -484,6 +505,23 @@ const handlers: Handler[] = [
         logEvent(
           task.id,
           task.is_today ? "today_flagged" : "today_unflagged"
+        );
+      }
+      const beforeEstimate = formatEstimate(
+        before.estimated_time,
+        before.estimated_time_unit
+      );
+      const afterEstimate = formatEstimate(
+        task.estimated_time,
+        task.estimated_time_unit
+      );
+      if (beforeEstimate !== afterEstimate) {
+        logEvent(
+          task.id,
+          "estimated_time_changed",
+          beforeEstimate,
+          afterEstimate,
+          { value: task.estimated_time, unit: task.estimated_time_unit }
         );
       }
 

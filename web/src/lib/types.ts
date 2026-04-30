@@ -36,6 +36,8 @@ export interface Comment {
   created_at: string;
 }
 
+export type EstimatedTimeUnit = "hours" | "days";
+
 export type TaskEventKind =
   | "created"
   | "renamed"
@@ -51,7 +53,8 @@ export type TaskEventKind =
   | "assigned"
   | "unassigned"
   | "today_flagged"
-  | "today_unflagged";
+  | "today_unflagged"
+  | "estimated_time_changed";
 
 export interface Profile {
   id: string;
@@ -92,6 +95,8 @@ export interface Task {
   position: number;
   is_today: boolean;
   today_position: number;
+  estimated_time: number | null;
+  estimated_time_unit: EstimatedTimeUnit;
   created_at: string;
   updated_at: string;
   tags?: Tag[];

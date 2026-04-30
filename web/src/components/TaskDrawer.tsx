@@ -13,7 +13,7 @@ import {
   useUsers,
 } from "../lib/api";
 import { Avatar } from "./Avatar";
-import type { Status, Tag, Task } from "../lib/types";
+import type { EstimatedTimeUnit, Status, Tag, Task } from "../lib/types";
 import { STATUS_LABEL, STATUS_ORDER } from "../lib/types";
 import { TagChip } from "./TagChip";
 import { TaskCard } from "./TaskCard";
@@ -236,6 +236,44 @@ function DrawerContent({
             }
             className="w-fit rounded-md border border-ink-200 px-2 py-1 text-sm"
           />
+
+          <label className="pt-1 text-xs font-medium text-ink-500">
+            Estimate
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              step={0.25}
+              value={task.estimated_time ?? ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                update.mutate({
+                  id: task.id,
+                  patch: {
+                    estimated_time: raw === "" ? null : Number(raw),
+                  },
+                });
+              }}
+              placeholder="—"
+              className="w-24 rounded-md border border-ink-200 px-2 py-1 text-sm"
+            />
+            <select
+              value={task.estimated_time_unit}
+              onChange={(e) =>
+                update.mutate({
+                  id: task.id,
+                  patch: {
+                    estimated_time_unit: e.target.value as EstimatedTimeUnit,
+                  },
+                })
+              }
+              className="rounded-md border border-ink-200 bg-white px-2 py-1 text-sm"
+            >
+              <option value="hours">hours</option>
+              <option value="days">days</option>
+            </select>
+          </div>
 
           <label className="pt-1 text-xs font-medium text-ink-500">
             Assignee

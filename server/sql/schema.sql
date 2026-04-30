@@ -28,6 +28,8 @@ create table if not exists tasks (
   position int not null default 0,
   is_today boolean not null default false,
   today_position int not null default 0,
+  estimated_time numeric(8,2),
+  estimated_time_unit text not null default 'hours' check (estimated_time_unit in ('hours','days')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
