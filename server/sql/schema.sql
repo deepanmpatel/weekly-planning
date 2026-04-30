@@ -24,6 +24,7 @@ create table if not exists tasks (
   description text not null default '',
   status text not null default 'todo' check (status in ('todo','in_progress','waiting_for_reply','done')),
   due_date date,
+  check_back_at date,
   completed_at timestamptz,
   position int not null default 0,
   is_today boolean not null default false,
@@ -114,6 +115,7 @@ create index if not exists tasks_parent_task_id_idx on tasks(parent_task_id);
 create index if not exists tasks_status_idx on tasks(status);
 create index if not exists tasks_assignee_idx on tasks(assignee_id);
 create index if not exists tasks_is_today_idx on tasks (is_today) where is_today;
+create index if not exists tasks_check_back_at_idx on tasks (check_back_at) where check_back_at is not null;
 create index if not exists task_events_task_id_idx on task_events(task_id, created_at desc);
 
 create or replace function touch_updated_at() returns trigger as $$

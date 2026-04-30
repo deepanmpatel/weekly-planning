@@ -37,6 +37,7 @@ src/
 - **Reuse `TaskCard`**. Add a prop (`compact`, `showProject`) instead of forking. Same applies to Avatar, TagChip, etc.
 - **Done columns are time-sorted, not user-ordered.** Every page that renders a Done column sorts by `completed_at` desc via `sortDoneByCompletedAt` in [lib/dragLogic.ts](src/lib/dragLogic.ts). The cache helpers (`applyGroupedToCache`, `applyReorderColumnsToCache`, `applyTodayCrossCellMoveToCache`) optimistically roll `completed_at` forward to `now` on transitions into `done` (and to `null` when leaving) so a freshly-dropped task lands at the top before the server round-trip. Drag handlers must apply the same sort to their cached snapshot before computing insertion indices.
 - **Tailwind first**. Use the `ink-*` palette in `tailwind.config.ts`. Custom shadows: `shadow-card`, `shadow-hover`. Inline `style={{}}` only for dynamic values (e.g. tag colors).
+- **Date-only fields** (`due_date`, `check_back_at`) are `string | null` in `YYYY-MM-DD`. Use a native `<input type="date">` bound to `task.field ?? ""` and PATCH `value || null`. The `check_back_at` badge in `TaskCard` renders whenever the value is set, regardless of status, so a stale follow-up on a Done/To-Do task stays visible. Tooltip text is `Need to check back on {date}`.
 - **No comments** unless *why* is non-obvious.
 
 ## Auth gate (App.tsx order)
@@ -47,11 +48,14 @@ src/
 4. `me.is_allowed === false` → `<NotApprovedPage />`
 5. otherwise → `<Sidebar />` + routed page (admin link visible only if `me.is_admin`)
 
-## Build
+## Build & test
 
 ```bash
 npm --workspace asana-web run build   # tsc -b && vite build
+npm --workspace asana-web run test    # vitest run (config: vitest.config.ts, env: jsdom + RTL)
 ```
+
+Tests live alongside source as `*.test.ts` / `*.test.tsx`. They are excluded from the production build via `tsconfig.json`. Setup file: `src/test-setup.ts` (registers `@testing-library/jest-dom`).
 
 ## VITE_API_BASE behavior
 

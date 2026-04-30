@@ -18,6 +18,7 @@ npm run dev:demo                                # web :5173 only, in-memory data
 npm --workspace asana-server run build          # tsc
 npm --workspace asana-web run build             # tsc -b && vite build
 npm run seed                                    # one-shot CSV import (bails if DB non-empty)
+npm test                                        # vitest across both workspaces
 ```
 
 ## Demo mode

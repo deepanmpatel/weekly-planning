@@ -238,17 +238,68 @@ function DrawerContent({
           <label className="pt-1 text-xs font-medium text-ink-500">
             Due date
           </label>
-          <input
-            type="date"
-            value={task.due_date ?? ""}
-            onChange={(e) =>
-              update.mutate({
-                id: task.id,
-                patch: { due_date: e.target.value || null },
-              })
-            }
-            className="w-fit rounded-md border border-ink-200 px-2 py-1 text-sm"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              aria-label="Due date"
+              value={task.due_date ?? ""}
+              onChange={(e) =>
+                update.mutate({
+                  id: task.id,
+                  patch: { due_date: e.target.value || null },
+                })
+              }
+              className="w-fit rounded-md border border-ink-200 px-2 py-1 text-sm"
+            />
+            {task.due_date && (
+              <button
+                type="button"
+                aria-label="Clear due date"
+                onClick={() =>
+                  update.mutate({
+                    id: task.id,
+                    patch: { due_date: null },
+                  })
+                }
+                className="rounded-md border border-ink-200 px-2 py-1 text-[11px] text-ink-700 hover:bg-ink-100"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <label className="pt-1 text-xs font-medium text-ink-500">
+            Check back
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              aria-label="Check-back date"
+              value={task.check_back_at ?? ""}
+              onChange={(e) =>
+                update.mutate({
+                  id: task.id,
+                  patch: { check_back_at: e.target.value || null },
+                })
+              }
+              className="w-fit rounded-md border border-ink-200 px-2 py-1 text-sm"
+            />
+            {task.check_back_at && (
+              <button
+                type="button"
+                aria-label="Clear check-back date"
+                onClick={() =>
+                  update.mutate({
+                    id: task.id,
+                    patch: { check_back_at: null },
+                  })
+                }
+                className="rounded-md border border-ink-200 px-2 py-1 text-[11px] text-ink-700 hover:bg-ink-100"
+              >
+                Clear
+              </button>
+            )}
+          </div>
 
           <label className="pt-1 text-xs font-medium text-ink-500">
             Estimate

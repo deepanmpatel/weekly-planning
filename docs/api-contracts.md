@@ -35,6 +35,12 @@ GET    /projects/:id/tasks             → Task[] (top-level, with subtasks[] ne
 PUT    /projects/:id/tasks/order       → 204
        body: {status, ordered_ids: string[]}
        Reassigns position 0..N within the status column. Constrained by project_id+status.
+PUT    /projects/:id/tasks/reorder     → 204
+       body: {todo, in_progress, waiting_for_reply, done: string[]}  (full grid)
+       Bulk reorder across all four status columns in one call. Detects cross-cell
+       moves; updates status + completed_at as needed; logs status_changed.
+       When a row's status flips INTO waiting_for_reply AND check_back_at is null,
+       the server sets it to today+7 (PT) and logs check_back_at_changed.
 ```
 
 ## Tasks
@@ -52,13 +58,18 @@ PUT    /tasks/today/reorder            → 204
        Reassigns today_position 0..N within (project_id, status) for is_today=true rows.
        Constrained by project_id+status+is_today.
 GET    /tasks/:id                      → Task with subtasks[], comments[], events[], tags, assignee
-POST   /tasks {project_id, parent_task_id?, name, description?, status?, due_date?, assignee_id?}
-                                       → 201 Task
-PATCH  /tasks/:id {name?, status?, due_date?, description?, project_id?, parent_task_id?, assignee_id?, position?, is_today?}
+POST   /tasks {project_id, parent_task_id?, name, description?, status?, due_date?, check_back_at?, assignee_id?, estimated_time?, estimated_time_unit?}
+                                       → 201 Task (no check_back_at auto-default — pass it explicitly if you want one)
+PATCH  /tasks/:id {name?, status?, due_date?, check_back_at?, description?, project_id?, parent_task_id?, assignee_id?, position?, is_today?, estimated_time?, estimated_time_unit?}
                                        → 200 Task (auto-sets completed_at on status=done;
                                           on is_today false→true, sets today_position to bottom
                                           of destination (project_id, status) cell;
-                                          logs today_flagged / today_unflagged on toggle)
+                                          logs today_flagged / today_unflagged on toggle.
+                                          When transitioning INTO waiting_for_reply AND the body
+                                          omits check_back_at AND the existing value is null,
+                                          sets check_back_at to today+7 (PT). Preserved on
+                                          transitions OUT of waiting_for_reply — caller clears
+                                          explicitly. Logs check_back_at_changed on any change.)
 DELETE /tasks/:id                      → 204
 POST   /tasks/:id/tags {tag_id}        → 204
 DELETE /tasks/:id/tags/:tagId          → 204

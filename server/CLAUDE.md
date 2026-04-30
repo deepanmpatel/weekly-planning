@@ -11,6 +11,7 @@ src/
 ├── events.ts          ← logEvent / logEvents + EventKind union
 ├── supabase.ts        ← service-role client (throws if env missing)
 ├── schemas.ts         ← shared Zod schemas (statusEnum, taskCreate, taskUpdate, …)
+├── dates.ts           ← TZ-anchored helpers (todayPtMidnightUtcIso, todayPtIsoDate)
 └── routes/
     ├── projects.ts    ← /projects + /projects/:id/tasks + /projects/:id/tasks/order
     ├── tasks.ts       ← /tasks (list + CRUD + tag attach/detach)
@@ -48,7 +49,8 @@ requireAllowed                 ← gate everything below
 - **Avoid N+1**: batch with `.in("col", ids)` then build a `Map`. See `attachTagsMany` and `fetchAssigneeMap` in [routes/tasks.ts](src/routes/tasks.ts).
 - **Activity events**: any task field change must call `logEvent`/`logEvents` after a successful update. New event kinds → extend `EventKind` in [events.ts](src/events.ts) AND mirror in [web/src/lib/types.ts](../web/src/lib/types.ts).
 - **Project_id + status guards on writes** that take a task id (defense against cross-project mutation). See `PUT /projects/:id/tasks/order` in [routes/projects.ts](src/routes/projects.ts). The Today reorder (`PUT /tasks/today/reorder`) additionally guards on `is_today=true`.
-- **TZ-anchored cutoffs** (e.g. "PT midnight, N business days back") use `Intl.DateTimeFormat` to derive the offset rather than hard-coding it. See `staleDoneCutoffUtcIso()` in [routes/tasks.ts](src/routes/tasks.ts) — mirror the algorithm in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts) when reusing. Business-day walk-back is weekday-only (no holiday calendar).
+- **TZ-anchored cutoffs** all live in [dates.ts](src/dates.ts) and use `Intl.DateTimeFormat` to derive the offset rather than hard-coding it. `todayPtMidnightUtcIso()` (most-recent PT midnight) and `staleDoneCutoffUtcIso()` (PT midnight, 2 business days back — weekday-only, no holiday calendar) are used by the lazy Today cleanup; `todayPtIsoDate(daysFromNow=7)` powers the `check_back_at` auto-default. Mirror the algorithm in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts) when reusing.
+- **`check_back_at` auto-default**: in `PATCH /tasks/:id` and `PUT /projects/:id/tasks/reorder`, when a task transitions INTO `waiting_for_reply` AND the request body does not set `check_back_at` AND the existing value is null, set it to `todayPtIsoDate()` (today+7 PT). The value is **preserved** on transitions out of `waiting_for_reply` — clearing is explicit. Auto-default does NOT fire on `POST /tasks` (creating a task already in `waiting_for_reply` leaves it null unless the body specifies). Emit `check_back_at_changed` whenever the value changes.
 - **No comments** unless the *why* is non-obvious.
 
 ## Migrations
@@ -57,11 +59,14 @@ requireAllowed                 ← gate everything below
 - Use `IF NOT EXISTS`, `CREATE OR REPLACE`, `ON CONFLICT DO NOTHING/UPDATE`.
 - See [sql/CLAUDE.md](sql/CLAUDE.md) for the table list and migration log.
 
-## Build
+## Build & test
 
 ```bash
 npm --workspace asana-server run build   # tsc, must pass clean
+npm --workspace asana-server run test    # vitest run (config: vitest.config.ts, env: node)
 ```
+
+Tests live in `test/` (see `test/supabaseMock.ts` for the chainable client mock used to fake the service-role client in route tests).
 
 ## Don't
 

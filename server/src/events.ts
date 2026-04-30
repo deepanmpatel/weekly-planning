@@ -5,6 +5,7 @@ export type EventKind =
   | "renamed"
   | "status_changed"
   | "due_date_changed"
+  | "check_back_at_changed"
   | "description_changed"
   | "moved_project"
   | "reparented"
