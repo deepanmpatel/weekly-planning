@@ -6,9 +6,12 @@ import { type EventInput, logEvent, logEvents } from "../events.js";
 
 export const tasksRouter = Router();
 
-// Today-PT midnight (the most-recent one, in the past) as a UTC ISO string.
-// Used by the lazy cleanup in GET /tasks/today to evict tasks completed before today.
-function todayPtMidnightUtcIso(): string {
+// Cutoff for the lazy "evict done from Today" cleanup in GET /tasks/today.
+// Returns midnight America/Los_Angeles of the date that is 2 weekdays before
+// today's PT date (Sat/Sun skipped — holidays not modeled). A done task whose
+// completed_at predates this cutoff has been visible for >= 2 business days
+// and is evicted on the next fetch.
+function staleDoneCutoffUtcIso(): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     year: "numeric",
@@ -21,23 +24,31 @@ function todayPtMidnightUtcIso(): string {
   });
   const parts = fmt.formatToParts(new Date());
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
-  const y = get("year");
-  const m = get("month");
-  const d = get("day");
-  const hh = get("hour") === "24" ? "00" : get("hour");
-  const mm = get("minute");
-  const ss = get("second");
-  const nowMs = Date.UTC(
-    Number(y),
-    Number(m) - 1,
-    Number(d),
-    Number(hh),
-    Number(mm),
-    Number(ss)
-  );
+  const y = Number(get("year"));
+  const m = Number(get("month"));
+  const d = Number(get("day"));
+  const hh = get("hour") === "24" ? 0 : Number(get("hour"));
+  const mm = Number(get("minute"));
+  const ss = Number(get("second"));
+  const nowMs = Date.UTC(y, m - 1, d, hh, mm, ss);
   const ptOffsetMs = nowMs - Date.now();
-  const midnightPtAsUtc = Date.UTC(Number(y), Number(m) - 1, Number(d), 0, 0, 0);
-  return new Date(midnightPtAsUtc - ptOffsetMs).toISOString();
+
+  let cutoff = new Date(Date.UTC(y, m - 1, d));
+  let remaining = 2;
+  while (remaining > 0) {
+    cutoff = new Date(cutoff.getTime() - 86_400_000);
+    const dow = cutoff.getUTCDay();
+    if (dow !== 0 && dow !== 6) remaining--;
+  }
+  const cutoffMidnightAsUtc = Date.UTC(
+    cutoff.getUTCFullYear(),
+    cutoff.getUTCMonth(),
+    cutoff.getUTCDate(),
+    0,
+    0,
+    0
+  );
+  return new Date(cutoffMidnightAsUtc - ptOffsetMs).toISOString();
 }
 
 async function attachTagsMany(taskIds: string[]) {
@@ -103,7 +114,7 @@ tasksRouter.get("/", async (_req, res) => {
 });
 
 tasksRouter.get("/today", async (_req, res) => {
-  const cutoff = todayPtMidnightUtcIso();
+  const cutoff = staleDoneCutoffUtcIso();
   await supabase
     .from("tasks")
     .update({ is_today: false })
