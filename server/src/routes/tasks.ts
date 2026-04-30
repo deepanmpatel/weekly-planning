@@ -3,53 +3,13 @@ import { z } from "zod";
 import { supabase } from "../supabase.js";
 import { taskCreate, taskUpdate, tagAttach, statusEnum } from "../schemas.js";
 import { type EventInput, logEvent, logEvents } from "../events.js";
+import {
+  todayPtMidnightUtcIso,
+  todayPtIsoDate,
+  staleDoneCutoffUtcIso,
+} from "../dates.js";
 
 export const tasksRouter = Router();
-
-// Cutoff for the lazy "evict done from Today" cleanup in GET /tasks/today.
-// Returns midnight America/Los_Angeles of the date that is 2 weekdays before
-// today's PT date (Sat/Sun skipped — holidays not modeled). A done task whose
-// completed_at predates this cutoff has been visible for >= 2 business days
-// and is evicted on the next fetch.
-function staleDoneCutoffUtcIso(): string {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = fmt.formatToParts(new Date());
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
-  const y = Number(get("year"));
-  const m = Number(get("month"));
-  const d = Number(get("day"));
-  const hh = get("hour") === "24" ? 0 : Number(get("hour"));
-  const mm = Number(get("minute"));
-  const ss = Number(get("second"));
-  const nowMs = Date.UTC(y, m - 1, d, hh, mm, ss);
-  const ptOffsetMs = nowMs - Date.now();
-
-  let cutoff = new Date(Date.UTC(y, m - 1, d));
-  let remaining = 2;
-  while (remaining > 0) {
-    cutoff = new Date(cutoff.getTime() - 86_400_000);
-    const dow = cutoff.getUTCDay();
-    if (dow !== 0 && dow !== 6) remaining--;
-  }
-  const cutoffMidnightAsUtc = Date.UTC(
-    cutoff.getUTCFullYear(),
-    cutoff.getUTCMonth(),
-    cutoff.getUTCDate(),
-    0,
-    0,
-    0
-  );
-  return new Date(cutoffMidnightAsUtc - ptOffsetMs).toISOString();
-}
 
 async function attachTagsMany(taskIds: string[]) {
   if (!taskIds.length) return new Map<string, any[]>();
@@ -263,6 +223,7 @@ tasksRouter.post("/", async (req, res) => {
     description: parsed.data.description ?? "",
     status: parsed.data.status ?? "todo",
     due_date: parsed.data.due_date ?? null,
+    check_back_at: parsed.data.check_back_at ?? null,
     parent_task_id: parsed.data.parent_task_id ?? null,
     assignee_id: parsed.data.assignee_id ?? null,
     position: parsed.data.position ?? nextPos,
@@ -341,6 +302,16 @@ tasksRouter.patch("/:id", async (req, res) => {
     patch.today_position = (maxRow?.today_position ?? -1) + 1;
   }
 
+  const transitioningToWaiting =
+    parsed.data.status === "waiting_for_reply" &&
+    before.status !== "waiting_for_reply";
+  const requestSetsCheckBack = "check_back_at" in parsed.data;
+  if (requestSetsCheckBack) {
+    patch.check_back_at = parsed.data.check_back_at ?? null;
+  } else if (transitioningToWaiting && !before.check_back_at) {
+    patch.check_back_at = todayPtIsoDate();
+  }
+
   const { data: after, error } = await supabase
     .from("tasks")
     .update(patch)
@@ -372,6 +343,14 @@ tasksRouter.patch("/:id", async (req, res) => {
       kind: "due_date_changed",
       from_value: before.due_date,
       to_value: after.due_date,
+    });
+  }
+  if ((before.check_back_at ?? null) !== (after.check_back_at ?? null)) {
+    events.push({
+      task_id: after.id,
+      kind: "check_back_at_changed",
+      from_value: before.check_back_at,
+      to_value: after.check_back_at,
     });
   }
   if ((before.description ?? "") !== (after.description ?? "")) {

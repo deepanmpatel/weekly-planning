@@ -90,6 +90,22 @@ function staleDoneCutoffUtcIso(): string {
   return new Date(cutoffMidnightUtc).toISOString();
 }
 
+function todayPlusDaysIsoDate(days: number): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = fmt.formatToParts(
+    new Date(Date.now() + days * 86_400_000)
+  );
+  const y = parts.find((p) => p.type === "year")!.value;
+  const m = parts.find((p) => p.type === "month")!.value;
+  const d = parts.find((p) => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
+}
+
 function logEvent(
   task_id: string,
   kind: TaskEventKind,
@@ -296,6 +312,20 @@ const handlers: Handler[] = [
           if (statusChanged) {
             task.completed_at = status === "done" ? nowIso() : null;
             logEvent(task.id, "status_changed", fromStatus, status);
+            if (
+              status === "waiting_for_reply" &&
+              fromStatus !== "waiting_for_reply" &&
+              !task.check_back_at
+            ) {
+              const beforeCheckBack = task.check_back_at;
+              task.check_back_at = todayPlusDaysIsoDate(7);
+              logEvent(
+                task.id,
+                "check_back_at_changed",
+                beforeCheckBack,
+                task.check_back_at
+              );
+            }
           }
           task.updated_at = nowIso();
         });
@@ -429,6 +459,7 @@ const handlers: Handler[] = [
         description: body?.description ?? "",
         status: body?.status ?? "todo",
         due_date: body?.due_date ?? null,
+        check_back_at: body?.check_back_at ?? null,
         completed_at: null,
         position:
           typeof body?.position === "number"
@@ -458,6 +489,17 @@ const handlers: Handler[] = [
       const task = tasks.find((t) => t.id === id);
       if (!task) throw new DemoNotFound("task not found");
       const before = clone(task);
+
+      const transitioningToWaiting =
+        body?.status === "waiting_for_reply" &&
+        before.status !== "waiting_for_reply";
+      const requestSetsCheckBack =
+        body && Object.prototype.hasOwnProperty.call(body, "check_back_at");
+      if (requestSetsCheckBack) {
+        task.check_back_at = body.check_back_at ?? null;
+      } else if (transitioningToWaiting && !before.check_back_at) {
+        task.check_back_at = todayPlusDaysIsoDate(7);
+      }
 
       if (typeof body?.name === "string") task.name = body.name;
       if (typeof body?.description === "string")
@@ -505,6 +547,13 @@ const handlers: Handler[] = [
         logEvent(task.id, "status_changed", before.status, task.status);
       if ((before.due_date ?? null) !== (task.due_date ?? null))
         logEvent(task.id, "due_date_changed", before.due_date, task.due_date);
+      if ((before.check_back_at ?? null) !== (task.check_back_at ?? null))
+        logEvent(
+          task.id,
+          "check_back_at_changed",
+          before.check_back_at,
+          task.check_back_at
+        );
       if ((before.description ?? "") !== (task.description ?? ""))
         logEvent(task.id, "description_changed");
       if ((before.assignee_id ?? null) !== (task.assignee_id ?? null)) {

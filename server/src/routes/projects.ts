@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabase } from "../supabase.js";
 import { projectCreate, projectUpdate, statusEnum } from "../schemas.js";
 import { type EventInput, logEvents } from "../events.js";
+import { todayPtIsoDate } from "../dates.js";
 
 export const projectsRouter = Router();
 
@@ -161,7 +162,7 @@ projectsRouter.put("/:id/tasks/reorder", async (req, res) => {
 
   const { data: current, error: fetchErr } = await supabase
     .from("tasks")
-    .select("id, status, position")
+    .select("id, status, position, check_back_at")
     .eq("project_id", projectId)
     .is("parent_task_id", null);
   if (fetchErr) return res.status(500).json({ error: fetchErr.message });
@@ -175,6 +176,8 @@ projectsRouter.put("/:id/tasks/reorder", async (req, res) => {
     patch: Record<string, unknown>;
     fromStatus: string;
     toStatus: string;
+    fromCheckBack: string | null;
+    toCheckBack: string | null;
   };
   const updates: Update[] = [];
 
@@ -196,11 +199,24 @@ projectsRouter.put("/:id/tasks/reorder", async (req, res) => {
         patch.completed_at =
           status === "done" ? new Date().toISOString() : null;
       }
+      const beforeCheckBack = (before.check_back_at as string | null) ?? null;
+      let nextCheckBack = beforeCheckBack;
+      if (
+        statusChanged &&
+        status === "waiting_for_reply" &&
+        before.status !== "waiting_for_reply" &&
+        !before.check_back_at
+      ) {
+        nextCheckBack = todayPtIsoDate();
+        patch.check_back_at = nextCheckBack;
+      }
       updates.push({
         id,
         patch,
         fromStatus: before.status,
         toStatus: status,
+        fromCheckBack: beforeCheckBack,
+        toCheckBack: nextCheckBack,
       });
     });
   }
@@ -221,15 +237,26 @@ projectsRouter.put("/:id/tasks/reorder", async (req, res) => {
     return res.status(500).json({ error: failed.error.message });
   }
 
-  const statusEvents: EventInput[] = updates
-    .filter((u) => u.fromStatus !== u.toStatus)
-    .map((u) => ({
-      task_id: u.id,
-      kind: "status_changed",
-      from_value: u.fromStatus,
-      to_value: u.toStatus,
-    }));
-  await logEvents(statusEvents);
+  const events: EventInput[] = [];
+  for (const u of updates) {
+    if (u.fromStatus !== u.toStatus) {
+      events.push({
+        task_id: u.id,
+        kind: "status_changed",
+        from_value: u.fromStatus,
+        to_value: u.toStatus,
+      });
+    }
+    if (u.fromCheckBack !== u.toCheckBack) {
+      events.push({
+        task_id: u.id,
+        kind: "check_back_at_changed",
+        from_value: u.fromCheckBack,
+        to_value: u.toCheckBack,
+      });
+    }
+  }
+  await logEvents(events);
 
   res.status(204).end();
 });

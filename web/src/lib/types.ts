@@ -54,7 +54,8 @@ export type TaskEventKind =
   | "unassigned"
   | "today_flagged"
   | "today_unflagged"
-  | "estimated_time_changed";
+  | "estimated_time_changed"
+  | "check_back_at_changed";
 
 export interface Profile {
   id: string;
@@ -91,6 +92,7 @@ export interface Task {
   description: string;
   status: Status;
   due_date: string | null;
+  check_back_at: string | null;
   completed_at: string | null;
   position: number;
   is_today: boolean;

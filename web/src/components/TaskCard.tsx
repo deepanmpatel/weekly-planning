@@ -21,6 +21,29 @@ function fmtDue(iso: string | null): { text: string; overdue: boolean } | null {
   return { text, overdue };
 }
 
+function checkBackInfo(iso: string | null): {
+  daysUntil: number;
+  isDue: boolean;
+  formatted: string;
+} | null {
+  if (!iso) return null;
+  const target = new Date(iso + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysUntil = Math.round(
+    (target.getTime() - today.getTime()) / 86_400_000
+  );
+  return {
+    daysUntil,
+    isDue: daysUntil <= 0,
+    formatted: target.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: target.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+    }),
+  };
+}
+
 function SubtaskIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -179,7 +202,8 @@ export function TaskCard({
             subtasks.length > 0 ||
             due ||
             showProject ||
-            task.estimated_time != null) && (
+            task.estimated_time != null ||
+            task.check_back_at) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {showProject && task.project_name && (
                 <span className="inline-flex items-center gap-1 rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-medium text-ink-700">
@@ -198,6 +222,25 @@ export function TaskCard({
                   📅 {due.text}
                 </span>
               )}
+              {(() => {
+                const checkBack = checkBackInfo(task.check_back_at);
+                if (!checkBack) return null;
+                return (
+                  <span
+                    title={`Need to check back on ${checkBack.formatted}`}
+                    className={clsx(
+                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      checkBack.isDue
+                        ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200"
+                        : "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200"
+                    )}
+                  >
+                    {checkBack.isDue
+                      ? "⚠ Check back"
+                      : `${checkBack.daysUntil}d to check back`}
+                  </span>
+                );
+              })()}
               {task.estimated_time != null && (
                 <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
                   ⏱ {task.estimated_time}

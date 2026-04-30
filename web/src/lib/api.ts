@@ -206,6 +206,7 @@ export interface CreateTaskInput {
   description?: string;
   status?: Task["status"];
   due_date?: string | null;
+  check_back_at?: string | null;
   assignee_id?: string | null;
   estimated_time?: number | null;
   estimated_time_unit?: Task["estimated_time_unit"];

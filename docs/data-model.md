@@ -14,8 +14,9 @@ projects (id, name, position)
    │ 1:N
    ▼
 tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
-       name, description, status, due_date, completed_at, position,
-       is_today, today_position)
+       name, description, status, due_date, check_back_at, completed_at,
+       position, is_today, today_position,
+       estimated_time, estimated_time_unit)
    │
    ├─── M:N ── task_tags ── tags (id, name, color)
    ├─── 1:N ── comments (id, task_id↗, body, created_at)
@@ -40,7 +41,13 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 
 `tasks.is_today` (bool) flags a task to appear on the Today page. `tasks.today_position` (int) is an independent per-(project, status) order for the Today swim-lane board, decoupled from `position` so that flagging a task does not perturb its order on the project page. See [adr/0005-today-flag-decoupled-position.md](adr/0005-today-flag-decoupled-position.md).
 
-`GET /tasks/today` performs a lazy cleanup at request time: tasks with `is_today=true`, `status='done'`, and `completed_at` older than the cutoff are flipped back to `is_today=false`. The cutoff is midnight America/Los_Angeles of the date 2 business days (Mon–Fri, weekends skipped, holidays not modeled) before today's PT date — so a task completed during a working day stays on Today through the next two working days, then drops off on the request after that. This is the only place in the codebase doing TZ-anchored cutoff math (helper `staleDoneCutoffUtcIso()` in [server/src/routes/tasks.ts](../server/src/routes/tasks.ts); mirrored in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts)).
+`GET /tasks/today` performs a lazy cleanup at request time: tasks with `is_today=true`, `status='done'`, and `completed_at` older than the cutoff are flipped back to `is_today=false`. The cutoff is midnight America/Los_Angeles of the date 2 business days (Mon–Fri, weekends skipped, holidays not modeled) before today's PT date — so a task completed during a working day stays on Today through the next two working days, then drops off on the request after that. TZ-anchored cutoff math lives in [server/src/dates.ts](../server/src/dates.ts) (`todayPtMidnightUtcIso()` and `staleDoneCutoffUtcIso()` for the cleanup, `todayPtIsoDate(daysFromNow)` for the `check_back_at` auto-default); the same algorithms are mirrored in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts).
+
+## Check-back date
+
+`tasks.check_back_at` (date, nullable) is a per-task follow-up reminder, surfaced as an amber/red badge on `TaskCard` whenever set (regardless of status, so a stale follow-up on a Done/To-Do task remains visible). Tooltip text: `Need to check back on {date}`.
+
+Server-side auto-default: when a task transitions INTO `waiting_for_reply` via `PATCH /tasks/:id` or `PUT /projects/:id/tasks/reorder` AND the request body does not specify `check_back_at` AND the existing value is null, the server sets it to `todayPtIsoDate()` (today + 7 days, PT). Auto-default does NOT fire on `POST /tasks` — creators must opt in explicitly. The value is **preserved** when status moves out of `waiting_for_reply`; the user clears it explicitly via the drawer "Clear" button. Single-source-of-truth lives on the server (PATCH and reorder paths), so any code that mutates status without going through those routes will skip the default.
 
 ## Profiles trigger
 
@@ -60,6 +67,7 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 | `renamed` | name changed |
 | `status_changed` | status changed |
 | `due_date_changed` | due_date changed (cleared / set / shifted) |
+| `check_back_at_changed` | check_back_at changed (auto-default, manual edit, or clear) |
 | `description_changed` | description changed (logged without content) |
 | `moved_project` | project_id changed |
 | `reparented` | parent_task_id changed |
@@ -79,6 +87,7 @@ When adding a new `EventKind`:
 
 - `tasks(project_id)`, `tasks(parent_task_id)`, `tasks(status)`, `tasks(assignee_id)`
 - `tasks(is_today) where is_today` (partial — only flagged rows)
+- `tasks(check_back_at) where check_back_at is not null` (partial)
 - `task_events(task_id, created_at desc)`
 - `allowed_emails(lower(email))`
 - All primary keys + unique constraints (implicit indexes).

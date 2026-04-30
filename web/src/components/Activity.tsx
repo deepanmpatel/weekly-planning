@@ -18,6 +18,7 @@ const KIND_ICON: Record<TaskEvent["kind"], string> = {
   today_flagged: "⭐",
   today_unflagged: "☆",
   estimated_time_changed: "⏱",
+  check_back_at_changed: "⏳",
 };
 
 function formatDate(iso: string | null): string {
@@ -146,6 +147,16 @@ function renderDescription(e: TaskEvent): React.ReactNode {
         <>
           Estimate changed from <strong>{e.from_value}</strong> to{" "}
           <strong>{e.to_value}</strong>
+        </>
+      );
+    case "check_back_at_changed":
+      if (!e.to_value) return <>Check-back date cleared</>;
+      if (!e.from_value)
+        return <>Check-back date set to {formatDate(e.to_value)}</>;
+      return (
+        <>
+          Check-back date changed {formatDate(e.from_value)} →{" "}
+          {formatDate(e.to_value)}
         </>
       );
     default:
