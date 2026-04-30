@@ -31,7 +31,13 @@ import {
   applyProjectsReorderToCache,
   applyTodayCellReorderToCache,
   applyTodayCrossCellMoveToCache,
+  sortDoneByCompletedAt,
 } from "../lib/dragLogic";
+
+function sortCellForDisplay(tasks: Task[], status: Status): Task[] {
+  if (status === "done") return sortDoneByCompletedAt(tasks);
+  return [...tasks].sort((a, b) => a.today_position - b.today_position);
+}
 import { TaskCard } from "../components/TaskCard";
 import { SortableTaskCard } from "../components/SortableTaskCard";
 import { TaskDrawer } from "../components/TaskDrawer";
@@ -222,11 +228,22 @@ export default function TodayPage() {
     }
     for (const projectId in out) {
       for (const s of STATUS_ORDER) {
-        out[projectId][s].sort((a, b) => {
-          if (a.today_position !== b.today_position)
-            return a.today_position - b.today_position;
-          return a.created_at.localeCompare(b.created_at);
-        });
+        if (s === "done") {
+          out[projectId][s].sort((a, b) => {
+            const ad = a.completed_at;
+            const bd = b.completed_at;
+            if (ad && bd) return bd.localeCompare(ad);
+            if (ad) return -1;
+            if (bd) return 1;
+            return 0;
+          });
+        } else {
+          out[projectId][s].sort((a, b) => {
+            if (a.today_position !== b.today_position)
+              return a.today_position - b.today_position;
+            return a.created_at.localeCompare(b.created_at);
+          });
+        }
       }
     }
     return out;
@@ -322,14 +339,15 @@ export default function TodayPage() {
     if (dest.project_id !== activeTask.project_id) return; // cross-project blocked
     if (dest.status === activeTask.status) return; // same cell, useSortable handles
 
-    const destCellTasks = cached
-      .filter(
+    const destCellTasks = sortCellForDisplay(
+      cached.filter(
         (t) =>
           t.project_id === dest.project_id &&
           t.status === dest.status &&
           t.id !== activeIdStr
-      )
-      .sort((a, b) => a.today_position - b.today_position);
+      ),
+      dest.status
+    );
 
     const overData = over.data.current as { kind?: string } | undefined;
     // Stable insert index: when `over` is a task, decide before/after based
@@ -426,13 +444,14 @@ export default function TodayPage() {
     // After possible dragOver moves, active is in its current cell. Compute
     // final ids for that cell, applying same-cell reorder if dropped on a
     // task within it.
-    const cellTasks = cached
-      .filter(
+    const cellTasks = sortCellForDisplay(
+      cached.filter(
         (t) =>
           t.project_id === activeTask.project_id &&
           t.status === activeTask.status
-      )
-      .sort((a, b) => a.today_position - b.today_position);
+      ),
+      activeTask.status
+    );
 
     const overIdStr = String(over.id);
     const overTask = cached.find((t) => t.id === overIdStr);
@@ -479,13 +498,14 @@ export default function TodayPage() {
       );
     } else {
       // Same-cell only: skip mutation if nothing changed.
-      const startCellTasks = (start.cache ?? [])
-        .filter(
+      const startCellTasks = sortCellForDisplay(
+        (start.cache ?? []).filter(
           (t) =>
             t.project_id === activeTask.project_id &&
             t.status === activeTask.status
-        )
-        .sort((a, b) => a.today_position - b.today_position);
+        ),
+        activeTask.status
+      );
       const startIds = startCellTasks.map((t) => t.id);
       const orderUnchanged =
         startIds.length === finalCellIds.length &&

@@ -22,5 +22,5 @@ Frontend uses `@dnd-kit/sortable` with one `DndContext` per status column. Drop 
 
 - `tasks.position` defaults to 0 on insert. Until a column is dragged, all positions are 0 and `created_at` is the tiebreaker. First drag-and-drop assigns positions deterministically.
 - The reorder endpoint is **constrained by `project_id` AND `status`** in WHERE clauses — defense against accidental cross-project / cross-status mutations.
-- All Tasks page sorts client-side by `(status, position, created_at)` (see [AllTasksPage.tsx](../../web/src/pages/AllTasksPage.tsx)), matching the project page's order.
+- All Tasks page sorts client-side by `(status, position, created_at)` (see [AllTasksPage.tsx](../../web/src/pages/AllTasksPage.tsx)), matching the project page's order — except the Done bucket on every page is sorted by `completed_at` desc instead (manual reorder within Done is intentionally not supported).
 - No activity event for reorders (intentionally — too noisy). Status changes via the dropdown still log `status_changed`.

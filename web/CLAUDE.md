@@ -21,9 +21,9 @@ src/
 │   ├── Avatar.tsx                ← initials/image, color-by-id
 │   ├── TagChip.tsx, StatusPill.tsx, NewTaskInline.tsx, Activity.tsx
 └── pages/
-    ├── AllTasksPage.tsx          ← grouped-by-project; honors task position
-    ├── ProjectPage.tsx           ← three status columns; drag-and-drop reorder
-    ├── TodayPage.tsx             ← swim-lane kanban (rows=projects, cols=4 statuses) for is_today tasks
+    ├── AllTasksPage.tsx          ← /all-tasks; grouped-by-project; honors task position (Done sorted by completed_at desc)
+    ├── ProjectPage.tsx           ← /projects/:id; four status columns; drag-and-drop reorder (Done sorted by completed_at desc)
+    ├── TodayPage.tsx             ← / (default); swim-lane kanban (rows=projects, cols=4 statuses) for is_today tasks (Done sorted by completed_at desc)
     ├── LoginPage.tsx             ← Google sign-in
     ├── AdminPage.tsx             ← allowlist + admin toggle (admins only)
     └── NotApprovedPage.tsx       ← shown when is_allowed === false
@@ -35,6 +35,7 @@ src/
 - **TanStack Query for all server state**. Don't `useState` for data that can be re-fetched. Mutations call `qc.invalidateQueries({ queryKey: qk.X })` — surgically, not the whole tree.
 - **Query keys** live in `qk` constant in [lib/api.ts](src/lib/api.ts). Extend it; don't hardcode key arrays inline.
 - **Reuse `TaskCard`**. Add a prop (`compact`, `showProject`) instead of forking. Same applies to Avatar, TagChip, etc.
+- **Done columns are time-sorted, not user-ordered.** Every page that renders a Done column sorts by `completed_at` desc via `sortDoneByCompletedAt` in [lib/dragLogic.ts](src/lib/dragLogic.ts). The cache helpers (`applyGroupedToCache`, `applyReorderColumnsToCache`, `applyTodayCrossCellMoveToCache`) optimistically roll `completed_at` forward to `now` on transitions into `done` (and to `null` when leaving) so a freshly-dropped task lands at the top before the server round-trip. Drag handlers must apply the same sort to their cached snapshot before computing insertion indices.
 - **Tailwind first**. Use the `ink-*` palette in `tailwind.config.ts`. Custom shadows: `shadow-card`, `shadow-hover`. Inline `style={{}}` only for dynamic values (e.g. tag colors).
 - **No comments** unless *why* is non-obvious.
 
