@@ -44,8 +44,9 @@ GET    /tasks                          → Task[] with project_name, tags, assig
                                           (sorted by project_id, position, created_at)
 GET    /tasks/today                    → Task[] flagged is_today=true, with project_name, tags, assignee
                                           (sorted by project.position, today_position, created_at)
-                                          Lazy-cleans done+is_today tasks completed before today's
-                                          America/Los_Angeles midnight before returning.
+                                          Lazy-cleans done+is_today tasks completed before midnight
+                                          America/Los_Angeles of the date 2 business days
+                                          (Mon–Fri, weekends skipped) before today's PT date.
 PUT    /tasks/today/reorder            → 204
        body: {project_id, status, ids: string[]}
        Reassigns today_position 0..N within (project_id, status) for is_today=true rows.

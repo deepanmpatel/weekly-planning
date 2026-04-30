@@ -40,7 +40,7 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 
 `tasks.is_today` (bool) flags a task to appear on the Today page. `tasks.today_position` (int) is an independent per-(project, status) order for the Today swim-lane board, decoupled from `position` so that flagging a task does not perturb its order on the project page. See [adr/0005-today-flag-decoupled-position.md](adr/0005-today-flag-decoupled-position.md).
 
-`GET /tasks/today` performs a lazy cleanup at request time: tasks with `is_today=true`, `status='done'`, and `completed_at` older than the most recent America/Los_Angeles midnight are flipped back to `is_today=false`. This is the only place in the codebase doing TZ-anchored cutoff math (helper `todayPtMidnightUtcIso()` in [server/src/routes/tasks.ts](../server/src/routes/tasks.ts); mirrored in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts)).
+`GET /tasks/today` performs a lazy cleanup at request time: tasks with `is_today=true`, `status='done'`, and `completed_at` older than the cutoff are flipped back to `is_today=false`. The cutoff is midnight America/Los_Angeles of the date 2 business days (Mon–Fri, weekends skipped, holidays not modeled) before today's PT date — so a task completed during a working day stays on Today through the next two working days, then drops off on the request after that. This is the only place in the codebase doing TZ-anchored cutoff math (helper `staleDoneCutoffUtcIso()` in [server/src/routes/tasks.ts](../server/src/routes/tasks.ts); mirrored in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts)).
 
 ## Profiles trigger
 

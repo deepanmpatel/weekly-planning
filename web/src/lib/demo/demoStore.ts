@@ -52,7 +52,7 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function todayMidnightPtIso(): string {
+function staleDoneCutoffUtcIso(): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     year: "numeric",
@@ -73,8 +73,21 @@ function todayMidnightPtIso(): string {
   const s = get("second") || 0;
   const utcNow = Date.UTC(y, mo - 1, d, h, mi, s);
   const offsetMs = utcNow - new Date().getTime();
-  const ptMidnightUtc = Date.UTC(y, mo - 1, d) - offsetMs;
-  return new Date(ptMidnightUtc).toISOString();
+
+  let cutoff = new Date(Date.UTC(y, mo - 1, d));
+  let remaining = 2;
+  while (remaining > 0) {
+    cutoff = new Date(cutoff.getTime() - 86_400_000);
+    const dow = cutoff.getUTCDay();
+    if (dow !== 0 && dow !== 6) remaining--;
+  }
+  const cutoffMidnightUtc =
+    Date.UTC(
+      cutoff.getUTCFullYear(),
+      cutoff.getUTCMonth(),
+      cutoff.getUTCDate()
+    ) - offsetMs;
+  return new Date(cutoffMidnightUtc).toISOString();
 }
 
 function logEvent(
@@ -315,7 +328,7 @@ const handlers: Handler[] = [
     method: "GET",
     pattern: /^\/tasks\/today$/,
     fn: () => {
-      const cutoff = todayMidnightPtIso();
+      const cutoff = staleDoneCutoffUtcIso();
       for (const t of tasks) {
         if (
           t.is_today &&

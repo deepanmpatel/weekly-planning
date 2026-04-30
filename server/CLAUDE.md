@@ -48,7 +48,7 @@ requireAllowed                 ← gate everything below
 - **Avoid N+1**: batch with `.in("col", ids)` then build a `Map`. See `attachTagsMany` and `fetchAssigneeMap` in [routes/tasks.ts](src/routes/tasks.ts).
 - **Activity events**: any task field change must call `logEvent`/`logEvents` after a successful update. New event kinds → extend `EventKind` in [events.ts](src/events.ts) AND mirror in [web/src/lib/types.ts](../web/src/lib/types.ts).
 - **Project_id + status guards on writes** that take a task id (defense against cross-project mutation). See `PUT /projects/:id/tasks/order` in [routes/projects.ts](src/routes/projects.ts). The Today reorder (`PUT /tasks/today/reorder`) additionally guards on `is_today=true`.
-- **TZ-anchored cutoffs** (e.g. "before today's PT midnight") use `Intl.DateTimeFormat` to derive the offset rather than hard-coding it. See `todayPtMidnightUtcIso()` in [routes/tasks.ts](src/routes/tasks.ts) — mirror the algorithm in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts) when reusing.
+- **TZ-anchored cutoffs** (e.g. "PT midnight, N business days back") use `Intl.DateTimeFormat` to derive the offset rather than hard-coding it. See `staleDoneCutoffUtcIso()` in [routes/tasks.ts](src/routes/tasks.ts) — mirror the algorithm in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts) when reusing. Business-day walk-back is weekday-only (no holiday calendar).
 - **No comments** unless the *why* is non-obvious.
 
 ## Migrations
