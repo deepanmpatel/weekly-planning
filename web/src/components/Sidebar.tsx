@@ -278,20 +278,6 @@ export function Sidebar() {
           to="/"
           end
           className={({ isActive }) => linkClass(isActive, true)}
-          title={collapsed ? "All Tasks" : undefined}
-        >
-          {collapsed ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h12v2H2z" />
-            </svg>
-          ) : (
-            <span>All Tasks</span>
-          )}
-        </NavLink>
-
-        <NavLink
-          to="/prioritized"
-          className={({ isActive }) => linkClass(isActive, true)}
           title={collapsed ? "Prioritized" : undefined}
         >
           {collapsed ? (
@@ -310,6 +296,20 @@ export function Sidebar() {
             </svg>
           ) : (
             <span>Prioritized</span>
+          )}
+        </NavLink>
+
+        <NavLink
+          to="/all-tasks"
+          className={({ isActive }) => linkClass(isActive, true)}
+          title={collapsed ? "All Tasks" : undefined}
+        >
+          {collapsed ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h12v2H2z" />
+            </svg>
+          ) : (
+            <span>All Tasks</span>
           )}
         </NavLink>
 

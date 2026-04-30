@@ -34,6 +34,8 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 
 `tasks.position` is a per-status integer that drives drag-and-drop priority order. Within a status column, tasks are sorted ASC by `position`, with `created_at` ASC as a tiebreaker. The All Tasks page also honors this — see [adr/0003-position-based-priority.md](adr/0003-position-based-priority.md).
 
+**Exception: Done columns are time-sorted client-side.** ProjectPage, TodayPage, and AllTasksPage all render Done by `completed_at` desc (latest first), ignoring `position` / `today_position`. `tasks.position` is still updated server-side on reorder writes — it's just not consulted for display when `status='done'`. See `sortDoneByCompletedAt` in [web/src/lib/dragLogic.ts](../web/src/lib/dragLogic.ts).
+
 ## Today flag
 
 `tasks.is_today` (bool) flags a task to appear on the Today page. `tasks.today_position` (int) is an independent per-(project, status) order for the Today swim-lane board, decoupled from `position` so that flagging a task does not perturb its order on the project page. See [adr/0005-today-flag-decoupled-position.md](adr/0005-today-flag-decoupled-position.md).

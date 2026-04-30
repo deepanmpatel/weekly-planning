@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { AllTasksPage } from "./pages/AllTasksPage";
 import { ProjectPage } from "./pages/ProjectPage";
@@ -42,9 +42,10 @@ export function App() {
       <Sidebar />
       <main className="min-w-0 flex-1">
         <Routes>
-          <Route path="/" element={<AllTasksPage />} />
+          <Route path="/" element={<TodayPage />} />
+          <Route path="/all-tasks" element={<AllTasksPage />} />
+          <Route path="/prioritized" element={<Navigate to="/" replace />} />
           <Route path="/projects/:id" element={<ProjectPage />} />
-          <Route path="/prioritized" element={<TodayPage />} />
           {me?.is_admin && (
             <Route path="/admin" element={<AdminPage />} />
           )}

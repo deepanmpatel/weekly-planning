@@ -66,6 +66,14 @@ export function AllTasksPage() {
     for (const list of map.values()) {
       list.sort((a, b) => {
         if (a.status !== b.status) return statusRank[a.status] - statusRank[b.status];
+        if (a.status === "done") {
+          const ad = a.completed_at;
+          const bd = b.completed_at;
+          if (ad && bd) return bd.localeCompare(ad);
+          if (ad) return -1;
+          if (bd) return 1;
+          return 0;
+        }
         if (a.position !== b.position) return a.position - b.position;
         return a.created_at.localeCompare(b.created_at);
       });

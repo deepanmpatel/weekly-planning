@@ -16,6 +16,20 @@ export function groupByStatus(tasks: Task[]): Grouped {
   return out;
 }
 
+// Done is always shown latest-completed-first. Tasks without completed_at
+// (e.g. mid-drag from another column before the optimistic stamp lands)
+// are pushed to the end so they don't visually trump real completions.
+export function sortDoneByCompletedAt(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const ad = a.completed_at;
+    const bd = b.completed_at;
+    if (ad && bd) return bd.localeCompare(ad);
+    if (ad) return -1;
+    if (bd) return 1;
+    return 0;
+  });
+}
+
 export function isStatusId(id: unknown): id is Status {
   return (
     id === "todo" ||
@@ -114,6 +128,21 @@ export function toReorderColumns(grouped: Grouped) {
   };
 }
 
+// When a status transition crosses the done boundary, mirror what the
+// server does on the next refetch (set/clear completed_at) so the Done
+// column's time-sorted display lands the moved task in the right place
+// optimistically rather than after the round-trip.
+function rolloverCompletedAt(
+  prevStatus: Status,
+  nextStatus: Status,
+  prev: string | null,
+  now: string
+): string | null {
+  if (nextStatus === "done" && prevStatus !== "done") return now;
+  if (nextStatus !== "done" && prevStatus === "done") return null;
+  return prev;
+}
+
 /**
  * Optimistically rewrites the cached project-tasks list to reflect a new
  * grouped state. Tasks not in any column (e.g. subtasks) are preserved.
@@ -125,11 +154,22 @@ export function applyGroupedToCache(
   if (!cached) return cached;
   const next: Task[] = [];
   const seen = new Set<string>();
+  const now = new Date().toISOString();
   for (const s of STATUS_ORDER) {
     grouped[s].forEach((t, i) => {
       const existing = cached.find((o) => o.id === t.id);
       if (existing) {
-        next.push({ ...existing, status: s, position: i });
+        next.push({
+          ...existing,
+          status: s,
+          position: i,
+          completed_at: rolloverCompletedAt(
+            existing.status,
+            s,
+            existing.completed_at,
+            now
+          ),
+        });
         seen.add(t.id);
       }
     });
@@ -161,9 +201,16 @@ export function applyReorderColumnsToCache(
   for (const s of STATUS_ORDER) {
     columns[s].forEach((id, i) => update.set(id, { status: s, position: i }));
   }
+  const now = new Date().toISOString();
   return cached.map((t) => {
     const u = update.get(t.id);
-    return u ? { ...t, status: u.status, position: u.position } : t;
+    if (!u) return t;
+    return {
+      ...t,
+      status: u.status,
+      position: u.position,
+      completed_at: rolloverCompletedAt(t.status, u.status, t.completed_at, now),
+    };
   });
 }
 
@@ -205,6 +252,7 @@ export function applyTodayCrossCellMoveToCache(
   if (!cached) return cached;
   const pos = new Map<string, number>();
   destIds.forEach((id, i) => pos.set(id, i));
+  const now = new Date().toISOString();
   return cached.map((t) => {
     if (t.id === taskId) {
       return {
@@ -212,6 +260,12 @@ export function applyTodayCrossCellMoveToCache(
         project_id: destProjectId,
         status: destStatus,
         today_position: pos.get(taskId) ?? 0,
+        completed_at: rolloverCompletedAt(
+          t.status,
+          destStatus,
+          t.completed_at,
+          now
+        ),
       };
     }
     if (

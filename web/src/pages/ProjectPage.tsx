@@ -31,6 +31,7 @@ import {
   findContainer,
   groupByStatus,
   isStatusId,
+  sortDoneByCompletedAt,
   toReorderColumns,
   type Grouped,
 } from "../lib/dragLogic";
@@ -110,10 +111,11 @@ export function ProjectPage() {
   // Derived (NOT state). When `data` is stable, this is memoized stable too.
   // When the cache updates (after a drop), `data` flips to the new reference
   // and `grouped` recomputes. No useEffect, no setGrouped, no loop.
-  const grouped = useMemo(
-    () => (data ? groupByStatus(data) : emptyGrouped()),
-    [data]
-  );
+  const grouped = useMemo<Grouped>(() => {
+    if (!data) return emptyGrouped();
+    const g = groupByStatus(data);
+    return { ...g, done: sortDoneByCompletedAt(g.done) };
+  }, [data]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -155,7 +157,11 @@ export function ProjectPage() {
 
     const cached = qc.getQueryData<Task[]>(["projects", id, "tasks"]);
     if (!cached) return;
-    const currentGrouped = groupByStatus(cached);
+    const groupedRaw = groupByStatus(cached);
+    const currentGrouped: Grouped = {
+      ...groupedRaw,
+      done: sortDoneByCompletedAt(groupedRaw.done),
+    };
 
     const activeContainer = findContainer(currentGrouped, activeIdStr);
     const overContainer = isStatusId(overIdStr)
@@ -222,7 +228,11 @@ export function ProjectPage() {
     const startSnapshot = dragStartCacheRef.current;
     dragStartCacheRef.current = undefined;
     if (!cached) return;
-    const currentGrouped = groupByStatus(cached);
+    const groupedRaw = groupByStatus(cached);
+    const currentGrouped: Grouped = {
+      ...groupedRaw,
+      done: sortDoneByCompletedAt(groupedRaw.done),
+    };
 
     const sameContainerMove = applyDrop(
       currentGrouped,
