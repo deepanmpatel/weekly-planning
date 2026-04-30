@@ -45,6 +45,7 @@ The hard rules are in the relevant `CLAUDE.md` files; trust them. The headline o
 - Migrations are numbered + idempotent + folded into `schema.sql`.
 - Prefer batch endpoints to N round-trips.
 - No new framework dependencies without explicit justification.
+- **Don't fire a network request on every keystroke or pointer move.** When designing a form field, specify the persistence trigger explicitly: `onBlur` (free text/number — match the name/description pattern in `TaskDrawer`), `onChange` (single-gesture controls: selects, dates, checkboxes), or a debounced effect (live-search). Drag/resize/scroll handlers must throttle. Call this out in the **Performance / security notes** section so the frontend-dev doesn't default to `onChange={mutate}` on text inputs.
 - **Demo-mode parity is required.** The in-memory store at [web/src/lib/demo/demoStore.ts](../../web/src/lib/demo/demoStore.ts) MUST mirror every endpoint shape exactly. Any new endpoint, new body shape, or new response field has to ship together with a matching demo handler — otherwise `npm run dev:demo` and the preview-tool verification path break silently. Read [web/src/lib/demo/CLAUDE.md](../../web/src/lib/demo/CLAUDE.md) for the rules.
 
 ## Workflow

@@ -95,6 +95,7 @@ function DrawerContent({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [estimateInput, setEstimateInput] = useState("");
   const [comment, setComment] = useState("");
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [newTagName, setNewTagName] = useState("");
@@ -103,6 +104,9 @@ function DrawerContent({
     if (task) {
       setName(task.name);
       setDescription(task.description ?? "");
+      setEstimateInput(
+        task.estimated_time != null ? String(task.estimated_time) : ""
+      );
     }
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -123,6 +127,15 @@ function DrawerContent({
     if (description !== task!.description) {
       update.mutate({ id: task!.id, patch: { description } });
     }
+  }
+  function persistEstimate() {
+    const raw = estimateInput.trim();
+    const next = raw === "" ? null : Number(raw);
+    if (next !== null && !Number.isFinite(next)) return;
+    const current =
+      task!.estimated_time == null ? null : Number(task!.estimated_time);
+    if (next === current) return;
+    update.mutate({ id: task!.id, patch: { estimated_time: next } });
   }
 
   const availableTags = allTags.filter(
@@ -245,15 +258,11 @@ function DrawerContent({
               type="number"
               min={0}
               step={0.25}
-              value={task.estimated_time ?? ""}
-              onChange={(e) => {
-                const raw = e.target.value;
-                update.mutate({
-                  id: task.id,
-                  patch: {
-                    estimated_time: raw === "" ? null : Number(raw),
-                  },
-                });
+              value={estimateInput}
+              onChange={(e) => setEstimateInput(e.target.value)}
+              onBlur={persistEstimate}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
               placeholder="—"
               className="w-24 rounded-md border border-ink-200 px-2 py-1 text-sm"
