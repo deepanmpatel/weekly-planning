@@ -29,6 +29,7 @@ create table if not exists tasks (
   position int not null default 0,
   is_today boolean not null default false,
   today_position int not null default 0,
+  prioritized_position int not null default 0,
   estimated_time numeric(8,2),
   estimated_time_unit text not null default 'hours' check (estimated_time_unit in ('hours','days')),
   created_at timestamptz not null default now(),
@@ -116,7 +117,12 @@ create index if not exists tasks_status_idx on tasks(status);
 create index if not exists tasks_assignee_idx on tasks(assignee_id);
 create index if not exists tasks_is_today_idx on tasks (is_today) where is_today;
 create index if not exists tasks_check_back_at_idx on tasks (check_back_at) where check_back_at is not null;
+create index if not exists tasks_prioritized_position_idx on tasks(prioritized_position);
 create index if not exists task_events_task_id_idx on task_events(task_id, created_at desc);
+
+insert into public.tags (name, color)
+  values ('work', '#2563eb')
+  on conflict (name) do nothing;
 
 create or replace function touch_updated_at() returns trigger as $$
 begin

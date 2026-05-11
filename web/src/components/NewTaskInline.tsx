@@ -10,6 +10,74 @@ import {
 import type { EstimatedTimeUnit, Status, Tag } from "../lib/types";
 import { TagChip } from "./TagChip";
 
+interface QuickTagSpec {
+  name: string;
+  label: string;
+  color: string;
+}
+
+const QUICK_TAGS: QuickTagSpec[] = [
+  { name: "work", label: "Work", color: "#2563eb" },
+];
+
+function QuickTagToggle({
+  spec,
+  allTags,
+  selectedTagIds,
+  setSelectedTagIds,
+}: {
+  spec: QuickTagSpec;
+  allTags: Tag[];
+  selectedTagIds: string[];
+  setSelectedTagIds: (fn: (ids: string[]) => string[]) => void;
+}) {
+  const createTag = useCreateTag();
+  const lower = spec.name.toLowerCase();
+  const matchedTag = allTags.find((t) => t.name.toLowerCase() === lower);
+  const isActive = matchedTag
+    ? selectedTagIds.includes(matchedTag.id)
+    : false;
+
+  async function toggle() {
+    if (matchedTag) {
+      if (selectedTagIds.includes(matchedTag.id)) {
+        setSelectedTagIds((ids) => ids.filter((id) => id !== matchedTag.id));
+      } else {
+        setSelectedTagIds((ids) => [...ids, matchedTag.id]);
+      }
+      return;
+    }
+    const created = await createTag.mutateAsync({
+      name: spec.name,
+      color: spec.color,
+    });
+    setSelectedTagIds((ids) =>
+      ids.includes(created.id) ? ids : [...ids, created.id]
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-pressed={isActive}
+      onClick={toggle}
+      title={
+        isActive
+          ? `Remove “${spec.label}” tag`
+          : `Tag this task as “${spec.label}”`
+      }
+      className={clsx(
+        "rounded px-1.5 py-0.5 text-xs underline-offset-2 transition hover:underline",
+        isActive
+          ? "bg-blue-100 font-semibold text-blue-800"
+          : "text-blue-700 hover:text-blue-900"
+      )}
+    >
+      {spec.label}
+    </button>
+  );
+}
+
 export function NewTaskInline({
   projectId,
   parentTaskId,
@@ -137,6 +205,19 @@ export function NewTaskInline({
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
         </button>
+
+        <span aria-hidden="true" className="h-5 w-px bg-ink-200" />
+
+        {/* Quick tag toggles */}
+        {QUICK_TAGS.map((spec) => (
+          <QuickTagToggle
+            key={spec.name}
+            spec={spec}
+            allTags={allTags}
+            selectedTagIds={selectedTagIds}
+            setSelectedTagIds={setSelectedTagIds}
+          />
+        ))}
 
         <span aria-hidden="true" className="h-5 w-px bg-ink-200" />
 

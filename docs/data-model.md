@@ -15,7 +15,7 @@ projects (id, name, position)
    ▼
 tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
        name, description, status, due_date, check_back_at, completed_at,
-       position, is_today, today_position,
+       position, is_today, today_position, prioritized_position,
        estimated_time, estimated_time_unit)
    │
    ├─── M:N ── task_tags ── tags (id, name, color)
@@ -33,15 +33,29 @@ tasks (id, project_id↗, parent_task_id↗?, assignee_id↗profiles?,
 
 ## Position
 
-`tasks.position` is a per-status integer that drives drag-and-drop priority order. Within a status column, tasks are sorted ASC by `position`, with `created_at` ASC as a tiebreaker. The All Tasks page also honors this — see [adr/0003-position-based-priority.md](adr/0003-position-based-priority.md).
+Each task carries **three independent per-board orderings**:
 
-**Exception: Done columns are time-sorted client-side.** ProjectPage, TodayPage, and AllTasksPage all render Done by `completed_at` desc (latest first), ignoring `position` / `today_position`. `tasks.position` is still updated server-side on reorder writes — it's just not consulted for display when `status='done'`. See `sortDoneByCompletedAt` in [web/src/lib/dragLogic.ts](../web/src/lib/dragLogic.ts).
+- `tasks.position` — the project board (per-status within a project). Drives All Tasks and ProjectPage. See [adr/0003-position-based-priority.md](adr/0003-position-based-priority.md).
+- `tasks.today_position` — the Today board (per-(project, status) for `is_today=true` rows). See [adr/0005-today-flag-decoupled-position.md](adr/0005-today-flag-decoupled-position.md).
+- `tasks.prioritized_position` — the Prioritized board (per-(bucket, status), bucket derived from tags). See [adr/0007-prioritized-buckets.md](adr/0007-prioritized-buckets.md).
+
+Within any cell, sort is ASC by the relevant position column with `created_at` ASC as tiebreaker. The columns are decoupled by design — dragging on one board does not perturb the other two.
+
+**Exception: Done columns are time-sorted client-side.** ProjectPage, PrioritizedPage, and AllTasksPage all render Done by `completed_at` desc (latest first), ignoring the position columns. Positions are still updated server-side on reorder writes — they're just not consulted for display when `status='done'`. See `sortDoneByCompletedAt` in [web/src/lib/dragLogic.ts](../web/src/lib/dragLogic.ts).
 
 ## Today flag
 
 `tasks.is_today` (bool) flags a task to appear on the Today page. `tasks.today_position` (int) is an independent per-(project, status) order for the Today swim-lane board, decoupled from `position` so that flagging a task does not perturb its order on the project page. See [adr/0005-today-flag-decoupled-position.md](adr/0005-today-flag-decoupled-position.md).
 
 `GET /tasks/today` performs a lazy cleanup at request time: tasks with `is_today=true`, `status='done'`, and `completed_at` older than the cutoff are flipped back to `is_today=false`. The cutoff is midnight America/Los_Angeles of the date 2 business days (Mon–Fri, weekends skipped, holidays not modeled) before today's PT date — so a task completed during a working day stays on Today through the next two working days, then drops off on the request after that. TZ-anchored cutoff math lives in [server/src/dates.ts](../server/src/dates.ts) (`todayPtMidnightUtcIso()` and `staleDoneCutoffUtcIso()` for the cleanup, `todayPtIsoDate(daysFromNow)` for the `check_back_at` auto-default); the same algorithms are mirrored in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts).
+
+## Prioritized buckets
+
+The Prioritized page (`/`, the app's default route) splits all top-level tasks into two top-level cards — **Work** and **Non-work** — each with four status columns. Bucket membership is **derived server-side** from whether the task carries a tag named `work` (case-insensitive match). It is never stored on the row; clients cannot set it.
+
+`GET /tasks/prioritized` returns top-level tasks (no subtasks) with a transient `bucket: "work" | "non_work"` field tacked onto each row alongside `project_name`, `tags`, `assignee`. It applies the same stale-done cutoff as Today (`staleDoneCutoffUtcIso()`), then sorts by `(bucket asc, status order, prioritized_position asc, created_at asc)` — Done within a bucket falls back to `completed_at desc`.
+
+`PUT /tasks/prioritized/reorder` body `{ bucket, status, ids[] }` re-derives each id's bucket from tags and status from the row; **any mismatch 400s with no partial writes**. The canonical `work` tag (color `#2563eb`) is seeded by migration `0009`; the quick-add input has a "Work" toggle that attaches/detaches it. See [adr/0007-prioritized-buckets.md](adr/0007-prioritized-buckets.md).
 
 ## Check-back date
 
@@ -88,6 +102,7 @@ When adding a new `EventKind`:
 - `tasks(project_id)`, `tasks(parent_task_id)`, `tasks(status)`, `tasks(assignee_id)`
 - `tasks(is_today) where is_today` (partial — only flagged rows)
 - `tasks(check_back_at) where check_back_at is not null` (partial)
+- `tasks(prioritized_position)`
 - `task_events(task_id, created_at desc)`
 - `allowed_emails(lower(email))`
 - All primary keys + unique constraints (implicit indexes).

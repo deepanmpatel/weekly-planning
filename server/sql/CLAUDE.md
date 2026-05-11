@@ -12,13 +12,14 @@
 | `0006_add_tasks_is_today.sql` | tasks.is_today + tasks.today_position + partial index `tasks_is_today_idx` |
 | `0007_add_tasks_estimated_time.sql` | tasks.estimated_time + tasks.estimated_time_unit |
 | `0008_add_tasks_check_back_at.sql` | tasks.check_back_at (date) + partial index `tasks_check_back_at_idx` |
+| `0009_add_tasks_prioritized_position.sql` | tasks.prioritized_position + index `tasks_prioritized_position_idx` + seeds canonical `work` tag |
 
 Numbering is monotonic — each new change gets the next integer. Don't renumber existing files. (0005 was intentionally skipped — see commit history.)
 
 ## Tables (current)
 
 - `projects(id, name, position, created_at)`
-- `tasks(id, project_id↗, parent_task_id↗?, assignee_id↗?, name, description, status, due_date, check_back_at?, completed_at, position, is_today, today_position, estimated_time?, estimated_time_unit?, created_at, updated_at)`
+- `tasks(id, project_id↗, parent_task_id↗?, assignee_id↗?, name, description, status, due_date, check_back_at?, completed_at, position, is_today, today_position, prioritized_position, estimated_time?, estimated_time_unit?, created_at, updated_at)`
 - `tags(id, name uniq, color)`
 - `task_tags(task_id↗, tag_id↗)` — composite PK
 - `comments(id, task_id↗, body, created_at)`

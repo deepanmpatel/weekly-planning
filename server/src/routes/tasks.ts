@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { supabase } from "../supabase.js";
-import { taskCreate, taskUpdate, tagAttach, statusEnum } from "../schemas.js";
+import {
+  taskCreate,
+  taskUpdate,
+  tagAttach,
+  statusEnum,
+  prioritizedReorder,
+} from "../schemas.js";
 import { type EventInput, logEvent, logEvents } from "../events.js";
 import {
   todayPtMidnightUtcIso,
@@ -153,6 +159,114 @@ tasksRouter.put("/today/reorder", async (req, res) => {
   res.status(204).end();
 });
 
+function deriveBucket(tags: { name?: string | null }[] | undefined): "work" | "non_work" {
+  for (const t of tags ?? []) {
+    if ((t?.name ?? "").toLowerCase() === "work") return "work";
+  }
+  return "non_work";
+}
+
+tasksRouter.get("/prioritized", async (_req, res) => {
+  const cutoff = staleDoneCutoffUtcIso();
+
+  const { data: tasks, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .is("parent_task_id", null);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const filtered = (tasks ?? []).filter(
+    (t) => t.status !== "done" || (t.completed_at && t.completed_at >= cutoff)
+  );
+
+  const { data: projects } = await supabase.from("projects").select("id, name");
+  const projName = new Map(
+    (projects ?? []).map((p) => [p.id, p.name] as const)
+  );
+
+  const tagMap = await attachTagsMany(filtered.map((t) => t.id));
+  const assigneeMap = await fetchAssigneeMap(
+    filtered.map((t) => t.assignee_id)
+  );
+
+  const enriched = filtered.map((t) => {
+    const tags = tagMap.get(t.id) ?? [];
+    return {
+      ...t,
+      project_name: projName.get(t.project_id) ?? null,
+      tags,
+      assignee: t.assignee_id ? assigneeMap.get(t.assignee_id) ?? null : null,
+      bucket: deriveBucket(tags),
+    };
+  });
+
+  const statusOrder: Record<string, number> = {
+    todo: 0,
+    in_progress: 1,
+    waiting_for_reply: 2,
+    done: 3,
+  };
+  const bucketOrder: Record<string, number> = { work: 0, non_work: 1 };
+
+  enriched.sort((a, b) => {
+    const ba = bucketOrder[a.bucket] ?? 99;
+    const bb = bucketOrder[b.bucket] ?? 99;
+    if (ba !== bb) return ba - bb;
+    const sa = statusOrder[a.status] ?? 99;
+    const sb = statusOrder[b.status] ?? 99;
+    if (sa !== sb) return sa - sb;
+    if (a.status === "done" && b.status === "done") {
+      const ta = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+      const tb = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+      if (ta !== tb) return tb - ta;
+    }
+    if (a.prioritized_position !== b.prioritized_position)
+      return a.prioritized_position - b.prioritized_position;
+    return (
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  });
+
+  res.json(enriched);
+});
+
+tasksRouter.put("/prioritized/reorder", async (req, res) => {
+  const parsed = prioritizedReorder.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { bucket, status, ids } = parsed.data;
+  if (ids.length === 0) return res.status(204).end();
+
+  const { data: rows, error: fetchErr } = await supabase
+    .from("tasks")
+    .select("id, status")
+    .in("id", ids);
+  if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+
+  const statusById = new Map((rows ?? []).map((r) => [r.id, r.status] as const));
+  const tagMap = await attachTagsMany(ids);
+
+  for (const id of ids) {
+    const s = statusById.get(id);
+    const b = deriveBucket(tagMap.get(id));
+    if (s !== status || b !== bucket) {
+      return res.status(400).json({ error: "bucket_or_status_mismatch" });
+    }
+  }
+
+  const results = await Promise.all(
+    ids.map((id, idx) =>
+      supabase.from("tasks").update({ prioritized_position: idx }).eq("id", id)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error)
+    return res.status(500).json({ error: failed.error.message });
+
+  res.status(204).end();
+});
+
 tasksRouter.get("/:id", async (req, res) => {
   const { data: task, error } = await supabase
     .from("tasks")
@@ -217,6 +331,14 @@ tasksRouter.post("/", async (req, res) => {
     .maybeSingle();
   const nextPos = (maxRow?.position ?? 0) + 1;
 
+  const { data: maxPrioRow } = await supabase
+    .from("tasks")
+    .select("prioritized_position")
+    .order("prioritized_position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPrioPos = (maxPrioRow?.prioritized_position ?? 0) + 1;
+
   const insertRow: Record<string, unknown> = {
     project_id: parsed.data.project_id,
     name: parsed.data.name,
@@ -227,6 +349,7 @@ tasksRouter.post("/", async (req, res) => {
     parent_task_id: parsed.data.parent_task_id ?? null,
     assignee_id: parsed.data.assignee_id ?? null,
     position: parsed.data.position ?? nextPos,
+    prioritized_position: nextPrioPos,
     estimated_time: parsed.data.estimated_time ?? null,
     estimated_time_unit: parsed.data.estimated_time_unit ?? "hours",
   };

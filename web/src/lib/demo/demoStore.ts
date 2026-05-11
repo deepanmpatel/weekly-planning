@@ -415,6 +415,92 @@ const handlers: Handler[] = [
   },
   {
     method: "GET",
+    pattern: /^\/tasks\/prioritized$/,
+    fn: () => {
+      const cutoff = staleDoneCutoffUtcIso();
+      const eligible = tasks.filter(
+        (t) =>
+          !t.parent_task_id &&
+          (t.status !== "done" ||
+            (t.completed_at && t.completed_at >= cutoff))
+      );
+      const enriched = eligible.map((t) => {
+        const taskTagsRows = tagsForTask(t.id);
+        const bucket: "work" | "non_work" = taskTagsRows.some(
+          (tag) => tag.name.toLowerCase() === "work"
+        )
+          ? "work"
+          : "non_work";
+        return {
+          ...t,
+          project_name: projectName(t.project_id),
+          tags: taskTagsRows,
+          assignee: profileById(t.assignee_id),
+          bucket,
+        };
+      });
+      const bucketRank: Record<string, number> = { work: 0, non_work: 1 };
+      const statusRank: Record<string, number> = {
+        todo: 0,
+        in_progress: 1,
+        waiting_for_reply: 2,
+        done: 3,
+      };
+      enriched.sort((a, b) => {
+        const br = (bucketRank[a.bucket] ?? 99) - (bucketRank[b.bucket] ?? 99);
+        if (br !== 0) return br;
+        const sr = (statusRank[a.status] ?? 99) - (statusRank[b.status] ?? 99);
+        if (sr !== 0) return sr;
+        if (a.status === "done" && b.status === "done") {
+          const ta = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+          const tb = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+          if (ta !== tb) return tb - ta;
+        }
+        if (a.prioritized_position !== b.prioritized_position)
+          return a.prioritized_position - b.prioritized_position;
+        return a.created_at.localeCompare(b.created_at);
+      });
+      return enriched;
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/tasks\/prioritized\/reorder$/,
+    fn: (_m, body) => {
+      const bucket = String(body?.bucket ?? "") as "work" | "non_work";
+      const status = String(body?.status ?? "") as Status;
+      const ids = (body?.ids ?? []) as string[];
+      if (bucket !== "work" && bucket !== "non_work")
+        throw new DemoBadRequest("invalid bucket");
+      if (!status) throw new DemoBadRequest("invalid status");
+      if (ids.length === 0) return undefined;
+
+      for (const id of ids) {
+        const task = tasks.find((t) => t.id === id);
+        if (!task) {
+          throw new DemoBadRequest("bucket_or_status_mismatch");
+        }
+        const taskBucket = tagsForTask(task.id).some(
+          (tag) => tag.name.toLowerCase() === "work"
+        )
+          ? "work"
+          : "non_work";
+        if (task.status !== status || taskBucket !== bucket) {
+          throw new DemoBadRequest("bucket_or_status_mismatch");
+        }
+      }
+
+      ids.forEach((taskId, index) => {
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        task.prioritized_position = index;
+        task.updated_at = nowIso();
+      });
+      return undefined;
+    },
+  },
+  {
+    method: "GET",
     pattern: /^\/tasks\/([^/]+)$/,
     fn: ([, id]) => {
       const task = tasks.find((t) => t.id === id);
@@ -450,6 +536,10 @@ const handlers: Handler[] = [
       const name = String(body?.name ?? "").trim();
       if (!project_id || !name) throw new DemoBadRequest("invalid task");
       const siblings = tasks.filter((t) => t.project_id === project_id);
+      const maxPrioritized = tasks.reduce(
+        (m, t) => (t.prioritized_position > m ? t.prioritized_position : m),
+        -1
+      );
       const task: Task = {
         id: uid("t"),
         project_id,
@@ -467,6 +557,7 @@ const handlers: Handler[] = [
             : (siblings.at(-1)?.position ?? -1) + 1,
         is_today: false,
         today_position: 0,
+        prioritized_position: maxPrioritized + 1,
         estimated_time:
           typeof body?.estimated_time === "number" ? body.estimated_time : null,
         estimated_time_unit:
