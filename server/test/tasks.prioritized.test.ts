@@ -100,6 +100,7 @@ interface SeededTask {
   prioritized_position?: number;
   completed_at?: string | null;
   created_at?: string;
+  is_today?: boolean;
   tag_names?: string[]; // attached tag names
 }
 
@@ -151,7 +152,7 @@ function seed({ tasks = [] }: SeedOptions) {
     completed_at: t.completed_at ?? null,
     position: 0,
     prioritized_position: t.prioritized_position ?? 0,
-    is_today: false,
+    is_today: t.is_today ?? true,
     today_position: 0,
     estimated_time: null,
     estimated_time_unit: "hours",
@@ -373,5 +374,37 @@ describe("GET /tasks/prioritized", () => {
     const ids = (r.body as PrioritizedTaskRow[]).map((row) => row.id);
     expect(ids).toContain("t-parent");
     expect(ids).not.toContain("t-child");
+  });
+
+  it("excludes tasks whose is_today flag is false", async () => {
+    seed({
+      tasks: [
+        { id: "t-on", is_today: true },
+        { id: "t-off", is_today: false },
+      ],
+    });
+    const app = await buildApp();
+    const r = await request(app).get("/tasks/prioritized");
+    const ids = (r.body as PrioritizedTaskRow[]).map((row) => row.id);
+    expect(ids).toContain("t-on");
+    expect(ids).not.toContain("t-off");
+  });
+
+  it("lazy-cleanup: a stale done is_today task has its is_today flag cleared and is excluded", async () => {
+    seed({
+      tasks: [
+        {
+          id: "t-stale",
+          status: "done",
+          is_today: true,
+          completed_at: "2026-04-20T05:00:00Z",
+        },
+      ],
+    });
+    const app = await buildApp();
+    const r = await request(app).get("/tasks/prioritized");
+    expect((r.body as PrioritizedTaskRow[]).map((row) => row.id)).toEqual([]);
+    const stale = mock.tables.tasks.find((row) => row.id === "t-stale");
+    expect(stale?.is_today).toBe(false);
   });
 });
