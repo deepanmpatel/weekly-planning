@@ -96,6 +96,7 @@ interface SeededTask {
   id: string;
   status?: "todo" | "in_progress" | "waiting_for_reply" | "done";
   prioritized_position?: number;
+  is_today?: boolean;
   tag_names?: string[]; // names attached to this task
 }
 
@@ -129,7 +130,7 @@ function seed(tasks: SeededTask[]) {
     completed_at: null,
     position: 0,
     prioritized_position: t.prioritized_position ?? 0,
-    is_today: false,
+    is_today: t.is_today ?? true,
     today_position: 0,
     estimated_time: null,
     estimated_time_unit: "hours",
@@ -260,6 +261,24 @@ describe("PUT /tasks/prioritized/reorder", () => {
       bucket: "work",
       status: "todo",
       ids: [T2, T1], // T1 is in_progress, not todo
+    });
+    expect(r.status).toBe(400);
+    const after = positionsById();
+    expect(after.get(T1)).toBe(before.get(T1));
+    expect(after.get(T2)).toBe(before.get(T2));
+  });
+
+  it("returns 400 and writes nothing when an id has is_today=false", async () => {
+    seed([
+      { id: T1, status: "todo", prioritized_position: 7, is_today: false, tag_names: ["work"] },
+      { id: T2, status: "todo", prioritized_position: 8, is_today: true, tag_names: ["work"] },
+    ]);
+    const app = await buildApp();
+    const before = positionsById();
+    const r = await request(app).put("/tasks/prioritized/reorder", {
+      bucket: "work",
+      status: "todo",
+      ids: [T2, T1],
     });
     expect(r.status).toBe(400);
     const after = positionsById();
