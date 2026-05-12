@@ -50,6 +50,7 @@ const qk = {
   projectTasks: (id: string) => ["projects", id, "tasks"] as const,
   allTasks: ["tasks"] as const,
   todayTasks: ["tasks", "today"] as const,
+  prioritized: ["tasks", "prioritized"] as const,
   task: (id: string) => ["tasks", id] as const,
   tags: ["tags"] as const,
   users: ["users"] as const,
@@ -191,6 +192,38 @@ export function useReorderTodayCell() {
   });
 }
 
+export function usePrioritizedTasks() {
+  return useQuery({
+    queryKey: qk.prioritized,
+    queryFn: () => http<Task[]>("/tasks/prioritized"),
+    staleTime: 0,
+  });
+}
+
+export function useReorderPrioritized() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      bucket,
+      status,
+      ids,
+    }: {
+      bucket: "work" | "non_work";
+      status: Task["status"];
+      ids: string[];
+    }) =>
+      http<void>("/tasks/prioritized/reorder", {
+        method: "PUT",
+        body: JSON.stringify({ bucket, status, ids }),
+      }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.prioritized });
+      qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: qk.todayTasks });
+    },
+  });
+}
+
 export function useTask(id: string | undefined) {
   return useQuery({
     queryKey: id ? qk.task(id) : ["tasks", "none"],
@@ -223,6 +256,7 @@ export function useCreateTask() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: qk.projectTasks(vars.project_id) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: qk.prioritized });
       qc.invalidateQueries({ queryKey: qk.projects });
       if (vars.parent_task_id)
         qc.invalidateQueries({ queryKey: qk.task(vars.parent_task_id) });
@@ -242,6 +276,7 @@ export function useUpdateTask() {
       qc.invalidateQueries({ queryKey: qk.projectTasks(data.project_id) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
       qc.invalidateQueries({ queryKey: qk.todayTasks });
+      qc.invalidateQueries({ queryKey: qk.prioritized });
       qc.invalidateQueries({ queryKey: qk.task(data.id) });
       qc.invalidateQueries({ queryKey: qk.projects });
       if (data.parent_task_id)
@@ -311,6 +346,7 @@ export function useAttachTag() {
     onSuccess: (_v, vars) => {
       qc.invalidateQueries({ queryKey: qk.task(vars.taskId) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: qk.prioritized });
       qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
@@ -324,6 +360,7 @@ export function useDetachTag() {
     onSuccess: (_v, vars) => {
       qc.invalidateQueries({ queryKey: qk.task(vars.taskId) });
       qc.invalidateQueries({ queryKey: qk.allTasks });
+      qc.invalidateQueries({ queryKey: qk.prioritized });
       qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });

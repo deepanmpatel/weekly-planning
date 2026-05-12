@@ -62,3 +62,11 @@ export const tagCreate = z.object({
 export const tagAttach = z.object({
   tag_id: z.string().uuid(),
 });
+
+export const bucketEnum = z.enum(["work", "non_work"]);
+
+export const prioritizedReorder = z.object({
+  bucket: bucketEnum,
+  status: statusEnum,
+  ids: z.array(z.string().uuid()).default([]),
+});

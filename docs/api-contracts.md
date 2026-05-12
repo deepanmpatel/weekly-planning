@@ -57,9 +57,24 @@ PUT    /tasks/today/reorder            → 204
        body: {project_id, status, ids: string[]}
        Reassigns today_position 0..N within (project_id, status) for is_today=true rows.
        Constrained by project_id+status+is_today.
+GET    /tasks/prioritized              → Task[] with project_name, tags, assignee, and a transient
+                                          bucket: "work" | "non_work" field. Top-level only
+                                          (parent_task_id is null). Applies the same stale-done
+                                          cutoff as /tasks/today. Sorted by
+                                          (bucket asc, status order, prioritized_position asc,
+                                          created_at asc); Done within a bucket falls back to
+                                          completed_at desc. Bucket = "work" iff the task carries
+                                          a tag named "work" (case-insensitive).
+PUT    /tasks/prioritized/reorder      → 204
+       body: {bucket: "work"|"non_work", status, ids: string[]}
+       Reassigns prioritized_position 0..N for the listed ids. Each id's bucket is
+       re-derived from its tags and status read from the row; any mismatch returns
+       400 {error:"bucket_or_status_mismatch"} with NO partial writes (validation
+       precedes any update). Empty ids → 204.
 GET    /tasks/:id                      → Task with subtasks[], comments[], events[], tags, assignee
 POST   /tasks {project_id, parent_task_id?, name, description?, status?, due_date?, check_back_at?, assignee_id?, estimated_time?, estimated_time_unit?}
-                                       → 201 Task (no check_back_at auto-default — pass it explicitly if you want one)
+                                       → 201 Task (no check_back_at auto-default — pass it explicitly if you want one;
+                                          server seeds prioritized_position = max+1 globally on insert, mirroring position)
 PATCH  /tasks/:id {name?, status?, due_date?, check_back_at?, description?, project_id?, parent_task_id?, assignee_id?, position?, is_today?, estimated_time?, estimated_time_unit?}
                                        → 200 Task (auto-sets completed_at on status=done;
                                           on is_today false→true, sets today_position to bottom

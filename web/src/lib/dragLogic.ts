@@ -1,7 +1,7 @@
 // Pure helpers for the project-page drag-and-drop kanban.
 // No React, no dnd-kit imports — easy to unit-test in isolation.
 
-import type { Project, Status, Task } from "./types";
+import type { Bucket, Project, Status, Task } from "./types";
 import { STATUS_ORDER } from "./types";
 
 export type Grouped = Record<Status, Task[]>;
@@ -274,6 +274,62 @@ export function applyTodayCrossCellMoveToCache(
       pos.has(t.id)
     ) {
       return { ...t, today_position: pos.get(t.id)! };
+    }
+    return t;
+  });
+}
+
+/**
+ * Optimistic cache update for `PUT /tasks/prioritized/reorder` (single cell).
+ * Sets `prioritized_position` for tasks matching `(bucket, status)` whose id
+ * appears in `ids`. Tasks outside that cell are untouched.
+ */
+export function applyPrioritizedCellReorderToCache(
+  cached: Task[] | undefined,
+  bucket: Bucket,
+  status: Status,
+  ids: string[]
+): Task[] | undefined {
+  if (!cached) return cached;
+  const pos = new Map<string, number>();
+  ids.forEach((id, i) => pos.set(id, i));
+  return cached.map((t) => {
+    if (t.bucket === bucket && t.status === status && pos.has(t.id)) {
+      return { ...t, prioritized_position: pos.get(t.id)! };
+    }
+    return t;
+  });
+}
+
+export function applyPrioritizedCrossCellMoveToCache(
+  cached: Task[] | undefined,
+  taskId: string,
+  bucket: Bucket,
+  destStatus: Status,
+  destIds: string[]
+): Task[] | undefined {
+  if (!cached) return cached;
+  const mover = cached.find((t) => t.id === taskId);
+  if (!mover || mover.bucket !== bucket) return cached;
+  const pos = new Map<string, number>();
+  destIds.forEach((id, i) => pos.set(id, i));
+  const now = new Date().toISOString();
+  return cached.map((t) => {
+    if (t.id === taskId) {
+      return {
+        ...t,
+        status: destStatus,
+        prioritized_position: pos.get(taskId) ?? 0,
+        completed_at: rolloverCompletedAt(
+          t.status,
+          destStatus,
+          t.completed_at,
+          now
+        ),
+      };
+    }
+    if (t.bucket === bucket && t.status === destStatus && pos.has(t.id)) {
+      return { ...t, prioritized_position: pos.get(t.id)! };
     }
     return t;
   });

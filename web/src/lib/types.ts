@@ -83,6 +83,8 @@ export interface TaskEvent {
   created_at: string;
 }
 
+export type Bucket = "work" | "non_work";
+
 export interface Task {
   id: string;
   project_id: string;
@@ -97,6 +99,7 @@ export interface Task {
   position: number;
   is_today: boolean;
   today_position: number;
+  prioritized_position: number;
   estimated_time: number | null;
   estimated_time_unit: EstimatedTimeUnit;
   created_at: string;
@@ -107,4 +110,5 @@ export interface Task {
   events?: TaskEvent[];
   project_name?: string | null;
   assignee?: Profile | null;
+  bucket?: Bucket;
 }

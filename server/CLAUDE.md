@@ -14,7 +14,7 @@ src/
 ├── dates.ts           ← TZ-anchored helpers (todayPtMidnightUtcIso, todayPtIsoDate)
 └── routes/
     ├── projects.ts    ← /projects + /projects/:id/tasks + /projects/:id/tasks/order
-    ├── tasks.ts       ← /tasks (list + CRUD + tag attach/detach)
+    ├── tasks.ts       ← /tasks (list + CRUD + tag attach/detach + /tasks/today + /tasks/prioritized)
     ├── comments.ts    ← /tasks/:taskId/comments
     ├── tags.ts        ← /tags
     ├── users.ts       ← /users (no allowlist gate — see app.ts)
@@ -48,7 +48,7 @@ requireAllowed                 ← gate everything below
 - **Status codes**: 200 read, 201 create-with-body, 204 no-body, 400 validation, 401 auth, 403 forbidden, 404 not-found, 409 conflict, 500 unexpected.
 - **Avoid N+1**: batch with `.in("col", ids)` then build a `Map`. See `attachTagsMany` and `fetchAssigneeMap` in [routes/tasks.ts](src/routes/tasks.ts).
 - **Activity events**: any task field change must call `logEvent`/`logEvents` after a successful update. New event kinds → extend `EventKind` in [events.ts](src/events.ts) AND mirror in [web/src/lib/types.ts](../web/src/lib/types.ts).
-- **Project_id + status guards on writes** that take a task id (defense against cross-project mutation). See `PUT /projects/:id/tasks/order` in [routes/projects.ts](src/routes/projects.ts). The Today reorder (`PUT /tasks/today/reorder`) additionally guards on `is_today=true`.
+- **Project_id + status guards on writes** that take a task id (defense against cross-project mutation). See `PUT /projects/:id/tasks/order` in [routes/projects.ts](src/routes/projects.ts). The Today reorder (`PUT /tasks/today/reorder`) additionally guards on `is_today=true`. The Prioritized reorder (`PUT /tasks/prioritized/reorder`) re-derives each id's bucket from tags + status from the row and 400s on any mismatch (no partial writes) — bucket is **server truth**, never trust the client's claim.
 - **TZ-anchored cutoffs** all live in [dates.ts](src/dates.ts) and use `Intl.DateTimeFormat` to derive the offset rather than hard-coding it. `todayPtMidnightUtcIso()` (most-recent PT midnight) and `staleDoneCutoffUtcIso()` (PT midnight, 2 business days back — weekday-only, no holiday calendar) are used by the lazy Today cleanup; `todayPtIsoDate(daysFromNow=7)` powers the `check_back_at` auto-default. Mirror the algorithm in [web/src/lib/demo/demoStore.ts](../web/src/lib/demo/demoStore.ts) when reusing.
 - **`check_back_at` auto-default**: in `PATCH /tasks/:id` and `PUT /projects/:id/tasks/reorder`, when a task transitions INTO `waiting_for_reply` AND the request body does not set `check_back_at` AND the existing value is null, set it to `todayPtIsoDate()` (today+7 PT). The value is **preserved** on transitions out of `waiting_for_reply` — clearing is explicit. Auto-default does NOT fire on `POST /tasks` (creating a task already in `waiting_for_reply` leaves it null unless the body specifies). Emit `check_back_at_changed` whenever the value changes.
 - **No comments** unless the *why* is non-obvious.

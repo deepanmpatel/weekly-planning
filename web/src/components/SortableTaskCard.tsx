@@ -7,9 +7,11 @@ import { TaskCard } from "./TaskCard";
 export function SortableTaskCard({
   task,
   onOpen,
+  showProject,
 }: {
   task: Task;
   onOpen?: (t: Task) => void;
+  showProject?: boolean;
 }) {
   const {
     attributes,
@@ -39,7 +41,7 @@ export function SortableTaskCard({
         isDragging ? "cursor-grabbing" : "cursor-grab active:cursor-grabbing"
       )}
     >
-      <TaskCard task={task} onOpen={onOpen} />
+      <TaskCard task={task} onOpen={onOpen} showProject={showProject} />
     </div>
   );
 }
