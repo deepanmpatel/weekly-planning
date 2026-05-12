@@ -418,11 +418,18 @@ const handlers: Handler[] = [
     pattern: /^\/tasks\/prioritized$/,
     fn: () => {
       const cutoff = staleDoneCutoffUtcIso();
+      for (const t of tasks) {
+        if (
+          t.is_today &&
+          t.status === "done" &&
+          t.completed_at &&
+          t.completed_at < cutoff
+        ) {
+          t.is_today = false;
+        }
+      }
       const eligible = tasks.filter(
-        (t) =>
-          !t.parent_task_id &&
-          (t.status !== "done" ||
-            (t.completed_at && t.completed_at >= cutoff))
+        (t) => t.is_today && !t.parent_task_id
       );
       const enriched = eligible.map((t) => {
         const taskTagsRows = tagsForTask(t.id);
@@ -477,7 +484,7 @@ const handlers: Handler[] = [
 
       for (const id of ids) {
         const task = tasks.find((t) => t.id === id);
-        if (!task) {
+        if (!task || !task.is_today) {
           throw new DemoBadRequest("bucket_or_status_mismatch");
         }
         const taskBucket = tagsForTask(task.id).some(

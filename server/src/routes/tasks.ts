@@ -168,16 +168,21 @@ function deriveBucket(tags: { name?: string | null }[] | undefined): "work" | "n
 
 tasksRouter.get("/prioritized", async (_req, res) => {
   const cutoff = staleDoneCutoffUtcIso();
+  await supabase
+    .from("tasks")
+    .update({ is_today: false })
+    .eq("is_today", true)
+    .eq("status", "done")
+    .lt("completed_at", cutoff);
 
   const { data: tasks, error } = await supabase
     .from("tasks")
     .select("*")
+    .eq("is_today", true)
     .is("parent_task_id", null);
   if (error) return res.status(500).json({ error: error.message });
 
-  const filtered = (tasks ?? []).filter(
-    (t) => t.status !== "done" || (t.completed_at && t.completed_at >= cutoff)
-  );
+  const filtered = tasks ?? [];
 
   const { data: projects } = await supabase.from("projects").select("id, name");
   const projName = new Map(
@@ -240,24 +245,28 @@ tasksRouter.put("/prioritized/reorder", async (req, res) => {
 
   const { data: rows, error: fetchErr } = await supabase
     .from("tasks")
-    .select("id, status")
+    .select("id, status, is_today")
     .in("id", ids);
   if (fetchErr) return res.status(500).json({ error: fetchErr.message });
 
-  const statusById = new Map((rows ?? []).map((r) => [r.id, r.status] as const));
+  const rowById = new Map((rows ?? []).map((r) => [r.id, r] as const));
   const tagMap = await attachTagsMany(ids);
 
   for (const id of ids) {
-    const s = statusById.get(id);
+    const row = rowById.get(id);
     const b = deriveBucket(tagMap.get(id));
-    if (s !== status || b !== bucket) {
+    if (!row || row.status !== status || !row.is_today || b !== bucket) {
       return res.status(400).json({ error: "bucket_or_status_mismatch" });
     }
   }
 
   const results = await Promise.all(
     ids.map((id, idx) =>
-      supabase.from("tasks").update({ prioritized_position: idx }).eq("id", id)
+      supabase
+        .from("tasks")
+        .update({ prioritized_position: idx })
+        .eq("id", id)
+        .eq("is_today", true)
     )
   );
   const failed = results.find((r) => r.error);
