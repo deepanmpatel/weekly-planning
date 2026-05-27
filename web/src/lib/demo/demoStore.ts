@@ -667,6 +667,14 @@ const handlers: Handler[] = [
           task.is_today ? "today_flagged" : "today_unflagged"
         );
       }
+      if (before.project_id !== task.project_id) {
+        logEvent(
+          task.id,
+          "moved_project",
+          projectName(before.project_id),
+          projectName(task.project_id)
+        );
+      }
       const beforeEstimate = formatEstimate(
         before.estimated_time,
         before.estimated_time_unit

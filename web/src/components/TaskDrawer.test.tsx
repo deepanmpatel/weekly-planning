@@ -80,6 +80,22 @@ vi.mock("../lib/api", () => {
     useAddComment: () => ({ mutateAsync: mutateAsyncSpy, isPending: false }),
     useTags: () => ({ data: [] }),
     useUsers: () => ({ data: [] }),
+    useProjects: () => ({
+      data: [
+        {
+          id: "p-1",
+          name: "Project One",
+          position: 0,
+          created_at: "2026-04-01T00:00:00Z",
+        },
+        {
+          id: "p-2",
+          name: "Project Two",
+          position: 1,
+          created_at: "2026-04-01T00:00:00Z",
+        },
+      ],
+    }),
     useMe: () => ({ data: null }),
     useCreateTask: () => ({ mutateAsync: noop, isPending: false }),
     useCreateTag: () => ({ mutateAsync: mutateAsyncSpy, isPending: false }),
@@ -176,5 +192,44 @@ describe("TaskDrawer — check_back_at field", () => {
     expect(last).toBeTruthy();
     expect(last.id).toBe("t-1");
     expect(last.patch).toEqual({ check_back_at: null });
+  });
+});
+
+describe("TaskDrawer — project field", () => {
+  beforeEach(() => {
+    mutateSpy.mockReset();
+    fakeTask.project_id = "p-1";
+  });
+
+  afterEach(() => {
+    cleanup();
+    fakeTask.project_id = "p-1";
+  });
+
+  it("renders a Project select pre-selected to the task's current project", () => {
+    render(wrap(<TaskDrawer taskId="t-1" onClose={() => {}} />));
+    const select = screen.getByLabelText(/^project$/i) as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.value).toBe("p-1");
+  });
+
+  it("changing the Project select fires useUpdateTask with { project_id: '<new>' }", async () => {
+    render(wrap(<TaskDrawer taskId="t-1" onClose={() => {}} />));
+    const select = screen.getByLabelText(/^project$/i) as HTMLSelectElement;
+    const user = userEvent.setup();
+    await user.selectOptions(select, "p-2");
+
+    const calls = mutateSpy.mock.calls
+      .map((c) => c[0])
+      .filter(
+        (p) =>
+          p &&
+          p.patch &&
+          Object.prototype.hasOwnProperty.call(p.patch, "project_id")
+      );
+    expect(calls.length).toBeGreaterThan(0);
+    const last = calls[calls.length - 1];
+    expect(last.id).toBe("t-1");
+    expect(last.patch.project_id).toBe("p-2");
   });
 });

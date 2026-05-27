@@ -7,6 +7,7 @@ import {
   useDeleteTask,
   useDetachTag,
   useMe,
+  useProjects,
   useTags,
   useTask,
   useUpdateTask,
@@ -88,6 +89,7 @@ function DrawerContent({
   const addComment = useAddComment();
   const { data: allTags = [] } = useTags();
   const { data: users = [] } = useUsers();
+  const { data: projects = [] } = useProjects();
   const { data: me } = useMe();
   const createTag = useCreateTag();
   const attachTag = useAttachTag();
@@ -231,6 +233,32 @@ function DrawerContent({
             {STATUS_ORDER.map((s) => (
               <option key={s} value={s}>
                 {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+
+          <label className="pt-1 text-xs font-medium text-ink-500">
+            Project
+          </label>
+          <select
+            aria-label="Project"
+            value={task.project_id}
+            onChange={(e) =>
+              update.mutate({
+                id: task.id,
+                patch: { project_id: e.target.value },
+              })
+            }
+            className="w-fit max-w-full rounded-md border border-ink-200 bg-white px-2 py-1 text-sm"
+          >
+            {projects.every((p) => p.id !== task.project_id) && (
+              <option value={task.project_id}>
+                {task.project_name ?? "(current project)"}
+              </option>
+            )}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
